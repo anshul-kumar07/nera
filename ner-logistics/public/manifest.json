@@ -1,0 +1,50 @@
+{
+  "name": "NER Logistics Intelligence Platform",
+  "short_name": "NER Logistics",
+  "description": "AI-Based Smart Logistics and Accessibility Intelligence Platform for North Eastern Region",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#0284c7",
+  "orientation": "any",
+  "categories": ["logistics", "government", "emergency"],
+  "lang": "en-IN",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Live GIS Map",
+      "short_name": "Map",
+      "description": "Open emergency logistics map",
+      "url": "/map",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Command Dashboard",
+      "short_name": "Dashboard",
+      "description": "View logistics command dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Report Incident",
+      "short_name": "Report",
+      "description": "Submit field incident report",
+      "url": "/report",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

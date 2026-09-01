@@ -1,0 +1,488 @@
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+:root {
+  --background: #f4f6fa;
+  --foreground: #1e293b;
+  --gov-navy: #213d77;
+  --gov-navy-dark: #1b3162;
+  --gov-orange: #fb792b;
+  --gov-orange-hover: #e05a00;
+  --gov-gold: #d97706;
+  --gov-green: #0d8a3e;
+  --gov-red: #dc2626;
+  --gov-card-bg: #ffffff;
+  --gov-border: #cbd5e1;
+}
+
+.dark {
+  --background: #0b0f19;
+  --foreground: #f8fafc;
+  --gov-card-bg: #131b2e;
+  --gov-border: #1e293b;
+}
+
+html, body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  min-height: 100vh;
+}
+
+.dark body {
+  background-color: #0b0f19 !important;
+  color: #f8fafc !important;
+}
+
+/* Make all headings, titles, labels, and dark text classes white & high-contrast in dark mode */
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6,
+.dark strong,
+.dark b,
+.dark .text-slate-950,
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-black,
+.dark [class*="text-[#213d77]"],
+.dark [class*="text-[#1b3162]"] {
+  color: #ffffff;
+}
+
+.dark .text-slate-700,
+.dark .text-slate-600 {
+  color: #e2e8f0;
+}
+
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: #94a3b8;
+}
+
+/* ── Vibrant Status & KPI Metrics in Dark Mode ── */
+/* Vivid Glowing Emerald / Green */
+.dark .text-emerald-950,
+.dark .text-emerald-900,
+.dark .text-emerald-800,
+.dark .text-emerald-700,
+.dark .text-emerald-600,
+.dark .text-green-950,
+.dark .text-green-900,
+.dark .text-green-800,
+.dark .text-green-700,
+.dark .text-green-600,
+.dark [class*="text-emerald-700"],
+.dark [class*="text-emerald-800"],
+.dark [class*="text-green-700"],
+.dark [class*="text-green-800"] {
+  color: #34d399 !important;
+}
+
+.dark .text-emerald-500,
+.dark .text-green-500 {
+  color: #4ade80 !important;
+}
+
+.dark .text-emerald-400,
+.dark .text-emerald-300,
+.dark .text-green-400,
+.dark .text-green-300,
+.dark [class*="text-emerald-600"],
+.dark [class*="text-green-600"] {
+  color: #a7f3d0 !important;
+}
+
+/* Vivid Warm Amber / Yellow */
+.dark .text-amber-950,
+.dark .text-amber-900,
+.dark .text-amber-800,
+.dark .text-amber-700,
+.dark .text-yellow-800,
+.dark .text-yellow-700,
+.dark [class*="text-amber-700"],
+.dark [class*="text-amber-800"] {
+  color: #fbbf24 !important;
+}
+
+.dark .text-amber-600,
+.dark .text-amber-500,
+.dark [class*="text-amber-600"] {
+  color: #fcd34d !important;
+}
+
+/* Vivid High-Contrast Blue */
+.dark .text-blue-950,
+.dark .text-blue-900,
+.dark .text-blue-800,
+.dark .text-blue-700,
+.dark [class*="text-blue-700"],
+.dark [class*="text-blue-800"] {
+  color: #60a5fa !important;
+}
+
+.dark .text-blue-600,
+.dark .text-blue-500,
+.dark [class*="text-blue-600"] {
+  color: #93c5fd !important;
+}
+
+/* Vivid Red / Rose */
+.dark .text-rose-950,
+.dark .text-rose-900,
+.dark .text-rose-800,
+.dark .text-rose-700,
+.dark .text-rose-600,
+.dark .text-red-950,
+.dark .text-red-900,
+.dark .text-red-800,
+.dark .text-red-700,
+.dark .text-red-600,
+.dark [class*="text-red-700"],
+.dark [class*="text-red-800"],
+.dark [class*="text-rose-700"],
+.dark [class*="text-rose-800"] {
+  color: #f87171 !important;
+}
+
+.dark .text-rose-500,
+.dark .text-rose-400,
+.dark .text-red-500,
+.dark .text-red-400,
+.dark [class*="text-red-600"],
+.dark [class*="text-rose-600"] {
+  color: #fca5a5 !important;
+}
+
+/* Card surfaces & backgrounds in Dark Mode (Semi-Transparent Glassmorphism) */
+.dark .gov-card,
+.dark .bg-white {
+  background-color: rgba(19, 27, 46, 0.78) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+.dark .gov-card-header,
+.dark .bg-slate-50,
+.dark .bg-slate-100,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark [class*="bg-[#f8fafc]"] {
+  background-color: rgba(15, 23, 42, 0.85) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+.dark thead,
+.dark thead tr,
+.dark thead th {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  color: #93c5fd !important;
+  border-color: rgba(51, 65, 85, 0.6) !important;
+}
+
+.dark tbody tr {
+  background-color: transparent !important;
+  border-color: rgba(51, 65, 85, 0.35) !important;
+}
+
+.dark tbody tr:nth-child(even) {
+  background-color: rgba(30, 41, 59, 0.25) !important;
+}
+
+.dark tbody tr:hover,
+.dark tr:hover {
+  background-color: rgba(51, 65, 85, 0.4) !important;
+}
+
+.dark .bg-slate-200,
+.dark .bg-gray-200 {
+  background-color: rgba(30, 41, 59, 0.6) !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-300,
+.dark .border-slate-100,
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* Inputs, textareas, selects in Dark Mode */
+.dark input[type="text"],
+.dark input[type="number"],
+.dark input[type="password"],
+.dark input[type="email"],
+.dark input[type="search"],
+.dark textarea,
+.dark select {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  color: #f8fafc !important;
+  border-color: rgba(71, 85, 105, 0.6) !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Inner card sub-boxes & alert banners in Dark Mode */
+.dark [class*="bg-white/"] {
+  background-color: rgba(15, 23, 42, 0.8) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* Red & Rose Tinted Boxes (NOT READY / CRITICAL) */
+.dark .bg-red-50,
+.dark .bg-red-100,
+.dark .bg-rose-50,
+.dark .bg-rose-100,
+.dark [class*="bg-red-50"],
+.dark [class*="bg-red-100"],
+.dark [class*="bg-rose-50"],
+.dark [class*="bg-rose-100"] {
+  background-color: rgba(225, 29, 72, 0.15) !important;
+  border-color: rgba(244, 63, 94, 0.35) !important;
+}
+
+/* Amber & Yellow Tinted Boxes (WARNING / PENDING) */
+.dark .bg-amber-50,
+.dark .bg-amber-100,
+.dark .bg-yellow-50,
+.dark .bg-yellow-100,
+.dark [class*="bg-amber-50"],
+.dark [class*="bg-amber-100"],
+.dark [class*="bg-yellow-50"],
+.dark [class*="bg-yellow-100"] {
+  background-color: rgba(245, 158, 11, 0.15) !important;
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+
+/* Blue & Indigo Tinted Boxes (IN TRANSIT / ADVISORY) */
+.dark .bg-blue-50,
+.dark .bg-blue-100,
+.dark .bg-indigo-50,
+.dark .bg-indigo-100,
+.dark [class*="bg-blue-50"],
+.dark [class*="bg-blue-100"],
+.dark [class*="bg-indigo-50"],
+.dark [class*="bg-indigo-100"] {
+  background-color: rgba(30, 58, 138, 0.25) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+/* Emerald & Green Tinted Boxes (READY / COMPLETED) */
+.dark .bg-emerald-50,
+.dark .bg-emerald-100,
+.dark .bg-green-50,
+.dark .bg-green-100,
+.dark [class*="bg-emerald-50"],
+.dark [class*="bg-emerald-100"],
+.dark [class*="bg-green-50"],
+.dark [class*="bg-green-100"] {
+  background-color: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+/* Tinted Card Borders */
+.dark [class*="border-red-200"],
+.dark [class*="border-red-300"],
+.dark [class*="border-rose-200"],
+.dark [class*="border-rose-300"] {
+  border-color: rgba(244, 63, 94, 0.35) !important;
+}
+
+.dark [class*="border-amber-200"],
+.dark [class*="border-amber-300"],
+.dark [class*="border-yellow-200"],
+.dark [class*="border-yellow-300"] {
+  border-color: rgba(245, 158, 11, 0.35) !important;
+}
+
+.dark [class*="border-emerald-200"],
+.dark [class*="border-emerald-300"],
+.dark [class*="border-green-200"],
+.dark [class*="border-green-300"] {
+  border-color: rgba(16, 185, 129, 0.35) !important;
+}
+
+.dark [class*="border-blue-200"],
+.dark [class*="border-blue-300"] {
+  border-color: rgba(59, 130, 246, 0.35) !important;
+}
+
+/* ── Leaflet Stacking Context & Isolation Fixes ── */
+.leaflet-container {
+  width: 100% !important;
+  height: 100% !important;
+  position: relative !important;
+  z-index: 1 !important;
+  isolation: isolate;
+}
+
+.leaflet-pane {
+  z-index: 10 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 20 !important;
+}
+
+.leaflet-control {
+  z-index: 20 !important;
+}
+
+/* ── Modern Compact Leaflet Popup Styling ── */
+.leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  border-radius: 14px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25), 0 8px 10px -6px rgba(0, 0, 0, 0.2) !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.35 !important;
+}
+
+.leaflet-popup-tip {
+  background: #ffffff !important;
+}
+
+.leaflet-popup-close-button {
+  top: 6px !important;
+  right: 6px !important;
+  color: #64748b !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.15s !important;
+  z-index: 10 !important;
+}
+
+.leaflet-popup-close-button:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+/* IRCTC Government Tri-Color Strip */
+.gov-tricolor {
+  height: 4px;
+  background: linear-gradient(90deg, #ff9933 0%, #ff9933 33.33%, #ffffff 33.33%, #ffffff 66.66%, #138808 66.66%, #138808 100%);
+}
+
+/* IRCTC Primary Orange Action Buttons */
+.btn-irctc-primary {
+  background-color: var(--gov-orange);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 6px;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 2px 4px rgba(251, 121, 43, 0.25);
+}
+.btn-irctc-primary:hover {
+  background-color: var(--gov-orange-hover);
+  box-shadow: 0 4px 8px rgba(251, 121, 43, 0.35);
+  transform: translateY(-1px);
+}
+
+/* IRCTC Navy Secondary Buttons */
+.btn-irctc-navy {
+  background-color: var(--gov-navy);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 6px;
+  transition: all 0.15s ease-in-out;
+}
+.btn-irctc-navy:hover {
+  background-color: var(--gov-navy-dark);
+  box-shadow: 0 4px 8px rgba(33, 61, 119, 0.3);
+}
+
+/* Government Card Styling */
+.gov-card {
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.gov-card-header {
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 10px 16px;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+button, [role="button"], select, a, input[type="button"], input[type="submit"], input[type="reset"] {
+  cursor: pointer !important;
+}
+
+/* Standard Government Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* ── Print / PDF Export Styles ──────────────────────────────────────────────── */
+@media print {
+  html, body, * {
+    background: #ffffff !important;
+    color: #000000 !important;
+    border-color: #cccccc !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  nav, header, aside,
+  [class*="animate-"],
+  [class*="Sidebar"],
+  button:not([data-print="show"]) {
+    display: none !important;
+  }
+
+  .gov-card {
+    border: 1px solid #cccccc !important;
+    page-break-inside: avoid;
+  }
+
+  .max-w-xl, .max-w-2xl, .max-w-5xl, .max-w-7xl {
+    max-width: 100% !important;
+  }
+
+  body::before {
+    content: "NERA — Government of India Disaster Logistics & Accessibility Portal — Official Report";
+    display: block;
+    font-size: 11px;
+    font-weight: bold;
+    color: #213d77 !important;
+    border-bottom: 1px solid #213d77;
+    padding-bottom: 4px;
+    margin-bottom: 12px;
+  }
+}

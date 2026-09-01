@@ -1,0 +1,3 @@
+SIH
+
+Secrets are intentionally not stored in this repository. Configure API keys and database credentials through local environment variables or your deployment platform's secret manager.
