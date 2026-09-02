@@ -96,6 +96,9 @@ export const NER_GRAPH_NODES: Record<string, GraphNode> = {
   Moreh: { id: 'Moreh', name: 'Moreh Border Trade Port (Manipur)', lat: 24.2400, lng: 94.3000, state: 'Manipur' },
   Pasighat: { id: 'Pasighat', name: 'Pasighat (Arunachal)', lat: 28.0700, lng: 95.3300, state: 'Arunachal Pradesh' },
   Roing: { id: 'Roing', name: 'Roing (Lower Dibang)', lat: 28.1500, lng: 95.8000, state: 'Arunachal Pradesh' },
+  Jowai: { id: 'Jowai', name: 'Jowai (West Jaintia Hills, Meghalaya)', lat: 25.4500, lng: 92.2000, state: 'Meghalaya' },
+  Boko: { id: 'Boko', name: 'Boko (Kamrup Western Arterial)', lat: 25.9800, lng: 91.2200, state: 'Assam' },
+  Dabaka: { id: 'Dabaka', name: 'Dabaka / Doboka (NH-27 / NH-29 Junction)', lat: 26.0000, lng: 92.8600, state: 'Assam' },
 }
 
 // Find nearest network node for any custom latitude/longitude marked on the map
@@ -789,12 +792,18 @@ export const NER_GRAPH_EDGES: GraphEdge[] = [
   { from: 'Siliguri', to: 'Guwahati', highway: 'NH-27 Siliguri–Bongaigaon–Guwahati Lifeline Arterial', distanceKm: 480, baseTimeHours: 9.0, status: 'open' },
 
   // Primary Meghalaya & Assam Spine
+  { from: 'Guwahati', to: 'Boko', highway: 'NH-17 Guwahati–Boko Arterial', distanceKm: 60, baseTimeHours: 1.4, status: 'open' },
+  { from: 'Boko', to: 'Nongstoin', highway: 'NH-106 Boko–Nongstoin Hill Highway', distanceKm: 85, baseTimeHours: 2.2, status: 'open' },
   { from: 'Guwahati', to: 'Shillong', highway: 'NH-6 Guwahati–Jorabat–Shillong Expressway', distanceKm: 100, baseTimeHours: 2.5, status: 'open' },
   { from: 'Shillong', to: 'Jowai', highway: 'NH-40 Shillong–Jowai Hill Corridor', distanceKm: 65, baseTimeHours: 1.8, status: 'open' },
   { from: 'Jowai', to: 'Silchar', highway: 'NH-40 Jowai–Silchar Mountain Highway', distanceKm: 150, baseTimeHours: 4.2, status: 'open' },
   { from: 'Nagaon', to: 'Jowai', highway: 'NH-27 / SH-18 Nellie–Khanduli Strategic Bypass', distanceKm: 135, baseTimeHours: 3.2, status: 'open' },
+  { from: 'Jowai', to: 'Dabaka', highway: 'SH-18 / NH-27 Nellie–Khanduli Strategic Bypass', distanceKm: 95, baseTimeHours: 2.3, status: 'open' },
 
   { from: 'Guwahati', to: 'Nagaon', highway: 'NH-27 Guwahati–Nagaon–Dibrugarh Arterial (South Bank)', distanceKm: 120, baseTimeHours: 2.5, status: 'open' },
+  { from: 'Tezpur', to: 'Nagaon', highway: 'NH-715 Kolia Bhomora Brahmaputra Bypass', distanceKm: 55, baseTimeHours: 1.2, status: 'open' },
+  { from: 'Nagaon', to: 'Dabaka', highway: 'NH-27 / NH-29 Dabaka Express Arterial', distanceKm: 35, baseTimeHours: 0.8, status: 'open' },
+  { from: 'Dabaka', to: 'Lumding', highway: 'NH-29 Dabaka–Lumding Highway', distanceKm: 35, baseTimeHours: 0.8, status: 'open' },
   { from: 'Nagaon', to: 'Lumding', highway: 'NH-27 / NH-29 Dabaka–Lumding Express Bypass', distanceKm: 70, baseTimeHours: 1.5, status: 'open' },
   { from: 'Lumding', to: 'Haflong', highway: 'NH-54E Lumding–Haflong Mountain Highway Bypass', distanceKm: 95, baseTimeHours: 2.5, status: 'open' },
   { from: 'Haflong', to: 'Silchar', highway: 'NH-54E Haflong–Jatinga–Silchar All-Weather Corridor', distanceKm: 85, baseTimeHours: 2.2, status: 'open' },
@@ -892,9 +901,9 @@ export function findShortestAlternatePath(
     edges.forEach(edge => {
       const matching = activeRoutes.find(
         r =>
+          r.name.toLowerCase() === edge.highway.toLowerCase() ||
           r.name.toLowerCase().includes(edge.highway.toLowerCase()) ||
-          edge.highway.toLowerCase().includes(r.name.toLowerCase()) ||
-          (r.highway_number && edge.highway.includes(r.highway_number))
+          edge.highway.toLowerCase().includes(r.name.toLowerCase())
       )
       if (matching) {
         edge.status = (matching.status as 'open' | 'at_risk' | 'blocked' | 'damaged') || 'open'
@@ -1069,10 +1078,21 @@ export function findShortestAlternatePath(
       const dLastToTarget = calculateHaversineKm(lastNode.lat, lastNode.lng, targetCoords.lat, targetCoords.lng)
       const dPrevToLast = calculateHaversineKm(prevNode.lat, prevNode.lng, lastNode.lat, lastNode.lng)
 
-      // Only drop lastNode if the target lies directly on the corridor between prevNode and lastNode,
-      // meaning the vehicle arrives at the target before reaching lastNode!
-      // NEVER drop lastNode if the target is beyond lastNode (which would discard the gateway city).
-      if (dPrevToTarget < dPrevToLast && dLastToTarget < dPrevToLast && dPrevToTarget < dLastToTarget) {
+      // Vector from prev to last
+      const vPrevToLast = { lat: lastNode.lat - prevNode.lat, lng: lastNode.lng - prevNode.lng }
+      // Vector from last to target
+      const vLastToTarget = { lat: targetCoords.lat - lastNode.lat, lng: targetCoords.lng - lastNode.lng }
+      const dot = vPrevToLast.lat * vLastToTarget.lat + vPrevToLast.lng * vLastToTarget.lng
+
+      // Drop lastNode if:
+      // 1) dot < 0 (heading past lastNode backtracks > 90° opposite to crisis area)
+      // 2) OR target lies on the corridor between prev and last
+      // 3) OR prevNode is closer to target than lastNode
+      const isOvershoot = dot < 0 && dLastToTarget > 12
+      const isIntermediate = dPrevToTarget < dPrevToLast && dLastToTarget < dPrevToLast
+      const isCloserToPrev = dPrevToTarget < dLastToTarget && dLastToTarget > 20
+
+      if (isOvershoot || isIntermediate || isCloserToPrev) {
         nodesToInclude.pop()
       }
     }

@@ -659,9 +659,9 @@ function MapPageContent() {
     // 2. Mark this road as blocked in state
     const updatedRoutes = routes.map(r => {
       const isMatch =
+        r.name.toLowerCase() === compromisedRoute.toLowerCase() ||
         r.name.toLowerCase().includes(compromisedRoute.toLowerCase()) ||
-        compromisedRoute.toLowerCase().includes(r.name.toLowerCase()) ||
-        (r.highway_number && compromisedRoute.toLowerCase().includes(r.highway_number.toLowerCase()))
+        compromisedRoute.toLowerCase().includes(r.name.toLowerCase())
       return isMatch ? { ...r, status: 'blocked' } : r
     })
     setRoutes(updatedRoutes)
