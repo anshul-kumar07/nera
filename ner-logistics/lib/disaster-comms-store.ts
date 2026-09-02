@@ -44,6 +44,11 @@ export interface ActiveCorridorDecision {
   cargoType: string
   etaMinutes: number
   alongRouteThanas: string[]
+  targetCoords?: { lat: number; lng: number }
+  originCoords?: { lat: number; lng: number; name?: string }
+  pathCoordinates?: [number, number][]
+  vehicleTelemetry?: any
+  distanceKm?: number
 }
 
 export interface ReliefBeacon {
@@ -1113,6 +1118,20 @@ export function useDisasterComms() {
     saveToStorage(STORAGE_KEYS.POLICE_CRISIS_ZONES, updated)
     setCrisisZones(updated)
 
+    // Reset active corridor so map route line is completely cleared
+    const clearedCorridor: ActiveCorridorDecision = {
+      ...INITIAL_CORRIDOR_DECISION,
+      status: 'STANDBY',
+      destinationTarget: '',
+      targetCoords: undefined,
+      pathCoordinates: undefined,
+      vehicleTelemetry: undefined,
+      distanceKm: 0,
+      etaMinutes: 0,
+    }
+    saveToStorage(STORAGE_KEYS.ACTIVE_CORRIDOR, clearedCorridor)
+    setActiveCorridor(clearedCorridor)
+
     if (targetZone) {
       // 👮 POLICE PERSPECTIVE
       addSMSMessage({
@@ -1145,6 +1164,31 @@ export function useDisasterComms() {
       })
     }
   }, [addSMSMessage])
+
+  // 5C. Clear Active Corridor & Normalize Map State
+  const clearActiveCorridor = useCallback(() => {
+    const clearedCorridor: ActiveCorridorDecision = {
+      ...INITIAL_CORRIDOR_DECISION,
+      status: 'STANDBY',
+      destinationTarget: '',
+      targetCoords: undefined,
+      pathCoordinates: undefined,
+      vehicleTelemetry: undefined,
+      distanceKm: 0,
+      etaMinutes: 0,
+    }
+    saveToStorage(STORAGE_KEYS.ACTIVE_CORRIDOR, clearedCorridor)
+    setActiveCorridor(clearedCorridor)
+
+    const currentVehicles = loadFromStorage(STORAGE_KEYS.TRACKING_VEHICLES, INITIAL_TRACKING_VEHICLES)
+    const updatedVehicles = currentVehicles.map(v => ({
+      ...v,
+      status: 'DELIVERED' as const,
+      progressPercent: 100,
+    }))
+    saveToStorage(STORAGE_KEYS.TRACKING_VEHICLES, updatedVehicles)
+    setTrackingVehicles(updatedVehicles)
+  }, [])
 
   // 6. Police Assessments Form
   const submitPoliceAssessment = useCallback((assessment: Omit<PoliceRouteAssessment, 'id' | 'status' | 'timestamp'>) => {
@@ -1204,6 +1248,150 @@ export function useDisasterComms() {
     setAssessments(updatedAssessments)
     setActiveCorridor(updatedDecision)
   }, [])
+
+  // 7B. Admin Immediately Solves & Activates Corridor for Crisis Area (Live Sync to Citizen Portal)
+  const adminActivateTacticalCorridor = useCallback((params: {
+    corridorName: string
+    originHub: string
+    destinationTarget: string
+    targetCoords: { lat: number; lng: number }
+    originCoords?: { lat: number; lng: number; name?: string }
+    pathCoordinates?: [number, number][]
+    vehicleTelemetry?: any
+    cargoType?: string
+    etaMinutes: number
+    distanceKm: number
+    assignedVehicleName?: string
+    assignedVehicleCategory?: VehicleCategory
+    matchedZoneId?: string
+  }) => {
+    const timeNow = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) + ' IST'
+    const vehicleName = params.assignedVehicleName || 'Hill 4x4 Off-Road Bolero (NER-TRUCK-18)'
+    const vehicleCat = params.assignedVehicleCategory || 'HILL_4X4_OFFROAD_2T'
+
+    const updatedDecision: ActiveCorridorDecision = {
+      corridorId: `COR-${Date.now()}`,
+      corridorName: params.corridorName,
+      status: 'ACTIVE_DISPATCH',
+      assignedVehicleCategory: vehicleCat,
+      assignedVehicleName: vehicleName,
+      assignedVehicleId: 'NER-TRUCK-18',
+      statutoryDirectiveText: `Statutory Route Clearance under BNSS Sec 187: Priority relief supplies dispatched via ${vehicleName} with Police VHF escort.`,
+      approvedBy: 'State EOC Apex Command (Admin)',
+      approvedAt: timeNow,
+      vhfChannel: 'CH-14 (156.700 MHz)',
+      originHub: params.originHub,
+      destinationTarget: params.destinationTarget,
+      cargoType: params.cargoType || 'Life-Saving Emergency Supplies & Medicine',
+      etaMinutes: params.etaMinutes,
+      alongRouteThanas: ['Guwahati Sadar PS', 'Nagaon Traffic PS', 'Lumding PS', 'Haflong Sadar PS'],
+      targetCoords: params.targetCoords,
+      originCoords: params.originCoords,
+      pathCoordinates: params.pathCoordinates,
+      vehicleTelemetry: params.vehicleTelemetry,
+      distanceKm: params.distanceKm,
+    }
+
+    // 1. Update active corridor
+    saveToStorage(STORAGE_KEYS.ACTIVE_CORRIDOR, updatedDecision)
+    setActiveCorridor(updatedDecision)
+
+    // 2. Match or update crisis zones
+    const currentZones = loadFromStorage(STORAGE_KEYS.POLICE_CRISIS_ZONES, INITIAL_POLICE_CRISIS_ZONES)
+    let foundMatch = false
+    const updatedZones = currentZones.map(zone => {
+      const dist = calculateDistanceKm(zone.lat, zone.lng, params.targetCoords.lat, params.targetCoords.lng)
+      if ((params.matchedZoneId && zone.id === params.matchedZoneId) || dist < 12.0) {
+        foundMatch = true
+        return {
+          ...zone,
+          workflowStatus: 'ROUTE_ASSIGNED' as CrisisWorkflowStatus,
+          assignedRouteName: params.corridorName,
+          assignedVehicleCategory: vehicleCat,
+          assignedVehicleName: vehicleName,
+          assignedRouteCoordinates: params.pathCoordinates,
+          distanceKm: params.distanceKm,
+          etaMinutes: params.etaMinutes,
+          adminNotes: `Designated by State EOC Admin via multi-modal corridor engine. Dispatched from ${params.originHub}.`,
+        }
+      }
+      return zone
+    })
+
+    if (!foundMatch) {
+      // Create a designated crisis zone at these coordinates
+      const newZone: PoliceCrisisZone = {
+        id: `pcz-${Date.now()}`,
+        title: `Designated Crisis Sector (${params.targetCoords.lat.toFixed(3)}, ${params.targetCoords.lng.toFixed(3)})`,
+        hazardType: '🚨 Critical Inaccessibility / Disaster Relief Grid',
+        lat: params.targetCoords.lat,
+        lng: params.targetCoords.lng,
+        radiusMeters: 6000,
+        severity: 'CRITICAL_DANGER',
+        affectedCorridor: params.corridorName,
+        policeStation: 'District Emergency Command',
+        declaredBy: 'State EOC Apex Command (Admin)',
+        evacuationGuidance: 'Emergency convoy dispatched. Civilians remain at verified high-ground safe shelters.',
+        workflowStatus: 'ROUTE_ASSIGNED',
+        assignedRouteName: params.corridorName,
+        assignedVehicleCategory: vehicleCat,
+        assignedVehicleName: vehicleName,
+        assignedRouteCoordinates: params.pathCoordinates,
+        distanceKm: params.distanceKm,
+        etaMinutes: params.etaMinutes,
+        adminNotes: `Designated directly on tactical map by State EOC Admin. Convoy en route.`,
+        timestamp: timeNow,
+      }
+      updatedZones.unshift(newZone)
+    }
+
+    saveToStorage(STORAGE_KEYS.POLICE_CRISIS_ZONES, updatedZones)
+    setCrisisZones(updatedZones)
+
+    // 3. Update tracking vehicles for Citizen Portal
+    const currentVehicles = loadFromStorage(STORAGE_KEYS.TRACKING_VEHICLES, INITIAL_TRACKING_VEHICLES)
+    const updatedVehicles = currentVehicles.map((v, idx) =>
+      idx === 0
+        ? {
+            ...v,
+            vehicleName: vehicleName,
+            destinationVAP: params.destinationTarget,
+            originDepot: params.originHub,
+            etaMinutes: params.etaMinutes,
+            status: 'IN_TRANSIT' as const,
+            progressPercent: 30,
+            updatedAt: timeNow,
+          }
+        : v
+    )
+    saveToStorage(STORAGE_KEYS.TRACKING_VEHICLES, updatedVehicles)
+    setTrackingVehicles(updatedVehicles)
+
+    // 4. SMS Alerts to all portals
+    addSMSMessage({
+      sender: 'STATE-EOC-ADMIN',
+      tag: 'CONVOY ROUTED & DISPATCHED',
+      content: `📤 [DIRECTIVE ISSUED] Route [${params.corridorName}] designated for ${params.destinationTarget}. Convoy [${vehicleName}] rolling. ETA: ~${params.etaMinutes} mins (${params.distanceKm} km).`,
+      type: 'admin_route',
+      recipientRole: 'admin',
+    })
+
+    addSMSMessage({
+      sender: 'STATE-EOC-ADMIN',
+      tag: 'CONVOY INBOUND ESCORT REQ',
+      content: `📥 [ADMIN DIRECTIVE] Emergency convoy [${vehicleName}] routed via [${params.corridorName}] towards ${params.destinationTarget}. Sector Police please clear passage & establish VHF pilot escort.`,
+      type: 'admin_route',
+      recipientRole: 'police',
+    })
+
+    addSMSMessage({
+      sender: 'NDMA-RELIEF-CONVOY',
+      tag: 'RELIEF CONVOY ACTIVE',
+      content: `🚚 [RELIEF CONVOY ACTIVE] Emergency supply convoy (${vehicleName}) dispatched towards ${params.destinationTarget}. ETA: ~${params.etaMinutes} mins. Live satellite tracking active on Public Safety Map.`,
+      type: 'citizen',
+      recipientRole: 'citizen',
+    })
+  }, [addSMSMessage])
 
   // 8. Citizen Actions: Mark Safe Relief Point
   const markReliefBeacon = useCallback((beacon: Omit<ReliefBeacon, 'id' | 'verifiedByPolice' | 'rescueTeamDispatched' | 'timestamp'>) => {
@@ -1591,5 +1779,7 @@ export function useDisasterComms() {
     policeVerifyAndForwardRequisition,
     policePushRouteDirective,
     adminDispatchSupplyConvoy,
+    adminActivateTacticalCorridor,
+    clearActiveCorridor,
   }
 }

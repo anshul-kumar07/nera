@@ -393,6 +393,67 @@ export default function CitizenPortalPage() {
             </div>
 
             <div className="space-y-3.5">
+              {/* ── 🛰️ Live Satellite Radar Convoy Tracking Card (Synchronized with Admin Map Dispatch) ── */}
+              {activeCorridor && activeCorridor.status === 'ACTIVE_DISPATCH' && (
+                <div className="p-4 rounded-xl border-2 border-emerald-400 bg-emerald-950/90 text-white space-y-3 shadow-lg relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+                  <div className="flex items-start justify-between gap-3 relative z-10">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-600/30 border border-emerald-400/50 flex items-center justify-center text-xl shrink-0 animate-pulse">
+                        🚚
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          <span className="text-[10px] font-mono font-black text-emerald-300 uppercase tracking-wider">
+                            LIVE SATELLITE GPS TRACKING
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-black text-white">
+                          {activeCorridor.assignedVehicleName || 'Emergency Hill Convoy (NER-TRUCK-18)'}
+                        </h3>
+                      </div>
+                    </div>
+                    <span className="text-xs font-mono font-black text-emerald-300 bg-emerald-900/80 border border-emerald-500/50 px-2.5 py-1 rounded">
+                      ETA ~{activeCorridor.etaMinutes || 45} mins
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900/80 p-3 rounded-lg border border-emerald-500/30 space-y-2 text-xs relative z-10">
+                    <div className="flex items-center justify-between text-[11px] text-slate-300">
+                      <span>Corridor: <strong className="text-white">{activeCorridor.corridorName}</strong></span>
+                      <span className="font-mono text-emerald-400 font-bold">{activeCorridor.distanceKm ? `${activeCorridor.distanceKm} km` : '180 km'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                      <span>Origin: <strong className="text-slate-200">{activeCorridor.originHub}</strong></span>
+                      <span>➔ Target: <strong className="text-emerald-300">{activeCorridor.destinationTarget}</strong></span>
+                    </div>
+                    {/* Progress Bar */}
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                        <span>En Route (Dispatched by State EOC)</span>
+                        <span className="text-emerald-400 font-bold">35% Completed</span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-linear-to-r from-emerald-500 to-teal-400 rounded-full w-[35%] animate-pulse" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1 relative z-10">
+                    <span className="text-emerald-200 text-[11px] flex items-center gap-1">
+                      <span>📦</span> Priority Relief Cargo Onboard
+                    </span>
+                    <Link
+                      href="/map"
+                      className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition-all shadow-md hover:shadow-emerald-500/20"
+                    >
+                      <span>🗺️ Track Moving Convoy on Map</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
+                </div>
+              )}
               {arrivingEssentials.map(item => (
                 <div
                   key={item.id}

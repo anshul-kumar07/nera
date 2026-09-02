@@ -790,12 +790,10 @@ export const NER_GRAPH_EDGES: GraphEdge[] = [
 
   // Primary Meghalaya & Assam Spine
   { from: 'Guwahati', to: 'Shillong', highway: 'NH-6 Guwahati–Jorabat–Shillong Expressway', distanceKm: 100, baseTimeHours: 2.5, status: 'open' },
-  { from: 'Shillong', to: 'Silchar', highway: 'NH-40 Shillong–Jowai–Silchar Hill Corridor', distanceKm: 215, baseTimeHours: 6.0, status: 'open' },
-  { from: 'Guwahati', to: 'Nongstoin', highway: 'NH-106 Nongstoin–Shillong High Plateau Bypass', distanceKm: 130, baseTimeHours: 3.5, status: 'open' },
-  { from: 'Nongstoin', to: 'Shillong', highway: 'NH-106 Nongstoin–Shillong High Plateau Bypass', distanceKm: 90, baseTimeHours: 2.2, status: 'open' },
-  { from: 'Nongstoin', to: 'Tura', highway: 'NH-217 Paikan–Tura Garo Hills Link', distanceKm: 120, baseTimeHours: 3.0, status: 'open' },
+  { from: 'Shillong', to: 'Jowai', highway: 'NH-40 Shillong–Jowai Hill Corridor', distanceKm: 65, baseTimeHours: 1.8, status: 'open' },
+  { from: 'Jowai', to: 'Silchar', highway: 'NH-40 Jowai–Silchar Mountain Highway', distanceKm: 150, baseTimeHours: 4.2, status: 'open' },
+  { from: 'Nagaon', to: 'Jowai', highway: 'NH-27 / SH-18 Nellie–Khanduli Strategic Bypass', distanceKm: 135, baseTimeHours: 3.2, status: 'open' },
 
-  // Assam Central & Lumding-Haflong Fast Track Bypass into Barak Valley / Mizoram / Manipur
   { from: 'Guwahati', to: 'Nagaon', highway: 'NH-27 Guwahati–Nagaon–Dibrugarh Arterial (South Bank)', distanceKm: 120, baseTimeHours: 2.5, status: 'open' },
   { from: 'Nagaon', to: 'Lumding', highway: 'NH-27 / NH-29 Dabaka–Lumding Express Bypass', distanceKm: 70, baseTimeHours: 1.5, status: 'open' },
   { from: 'Lumding', to: 'Haflong', highway: 'NH-54E Lumding–Haflong Mountain Highway Bypass', distanceKm: 95, baseTimeHours: 2.5, status: 'open' },
@@ -1043,7 +1041,44 @@ export function findShortestAlternatePath(
     pathCoordinates.push([dynamicOptions.originCoords.lat, dynamicOptions.originCoords.lng])
   }
 
-  for (const nodeKey of finalPath) {
+  const nodesToInclude = [...finalPath]
+
+  // Ingress optimization: if custom origin is already closer to node[1] than node[0], avoid backtracking to node[0]
+  if (dynamicOptions?.originCoords && nodesToInclude.length > 1) {
+    const firstNodeKey = nodesToInclude[0]
+    const nextNodeKey = nodesToInclude[1]
+    const firstNode = NER_GRAPH_NODES[firstNodeKey]
+    const nextNode = NER_GRAPH_NODES[nextNodeKey]
+    if (firstNode && nextNode) {
+      const dOriginToNext = calculateHaversineKm(dynamicOptions.originCoords.lat, dynamicOptions.originCoords.lng, nextNode.lat, nextNode.lng)
+      const dFirstToNext = calculateHaversineKm(firstNode.lat, firstNode.lng, nextNode.lat, nextNode.lng)
+      if (dOriginToNext < dFirstToNext * 0.85) {
+        nodesToInclude.shift()
+      }
+    }
+  }
+
+  // Egress optimization: if custom target is reached before or without the last graph node, don't overshoot to the last node
+  if (targetCoords && nodesToInclude.length > 1) {
+    const lastNodeKey = nodesToInclude[nodesToInclude.length - 1]
+    const prevNodeKey = nodesToInclude[nodesToInclude.length - 2]
+    const lastNode = NER_GRAPH_NODES[lastNodeKey]
+    const prevNode = NER_GRAPH_NODES[prevNodeKey]
+    if (lastNode && prevNode) {
+      const dPrevToTarget = calculateHaversineKm(prevNode.lat, prevNode.lng, targetCoords.lat, targetCoords.lng)
+      const dLastToTarget = calculateHaversineKm(lastNode.lat, lastNode.lng, targetCoords.lat, targetCoords.lng)
+      const dPrevToLast = calculateHaversineKm(prevNode.lat, prevNode.lng, lastNode.lat, lastNode.lng)
+
+      // Only drop lastNode if the target lies directly on the corridor between prevNode and lastNode,
+      // meaning the vehicle arrives at the target before reaching lastNode!
+      // NEVER drop lastNode if the target is beyond lastNode (which would discard the gateway city).
+      if (dPrevToTarget < dPrevToLast && dLastToTarget < dPrevToLast && dPrevToTarget < dLastToTarget) {
+        nodesToInclude.pop()
+      }
+    }
+  }
+
+  for (const nodeKey of nodesToInclude) {
     const node = NER_GRAPH_NODES[nodeKey]
     if (node) {
       // Avoid duplicate point if custom origin was exactly at node
@@ -1085,6 +1120,24 @@ export function findShortestAlternatePath(
   // Find primary recommended highway along the path
   let recommendedHighway = targetCoords ? deduceCorridorFromCoordinates(targetCoords.lat, targetCoords.lng).highway : 'NH-27 National Freight Gateway'
 
+  // If a road is blocked, ensure the initial deduced corridor is NOT the blocked road
+  if (blockedHighwayName && (
+    recommendedHighway.toLowerCase().includes(blockedHighwayName.toLowerCase()) ||
+    blockedHighwayName.toLowerCase().includes(recommendedHighway.toLowerCase()) ||
+    (blockedHighwayName.includes('NH-54') && recommendedHighway.includes('NH-54'))
+  )) {
+    // Switch default to known regional bypass for this destination
+    if (resolvedDestination === 'Aizawl' || destLat < 24.2) {
+      recommendedHighway = 'NH-306 Kolasib–Aizawl Heavy Freight Bypass'
+    } else if (resolvedDestination === 'Imphal') {
+      recommendedHighway = 'NH-2 Dimapur–Kohima–Imphal National Corridor'
+    } else if (resolvedDestination === 'Agartala') {
+      recommendedHighway = 'NH-208 Kumarghat–Khowai Alternate Corridor'
+    } else if (resolvedDestination === 'Gangtok') {
+      recommendedHighway = 'NH-717A Bagrakote–Lava–Rishi–Rongli Alternate Gangtok Bypass'
+    }
+  }
+
   if (finalPath.length >= 2) {
     let chosenEdge: GraphEdge | undefined
     for (let i = 0; i < finalPath.length - 1; i++) {
@@ -1094,18 +1147,46 @@ export function findShortestAlternatePath(
         e =>
           ((e.from === u && e.to === v) || (e.from === v && e.to === u)) &&
           e.status === 'open' &&
-          (!blockedHighwayName || !e.highway.toLowerCase().includes(blockedHighwayName.toLowerCase()))
+          (!blockedHighwayName || (
+            !e.highway.toLowerCase().includes(blockedHighwayName.toLowerCase()) &&
+            !blockedHighwayName.toLowerCase().includes(e.highway.toLowerCase())
+          ))
       )
       if (edge) {
-        if (blockedHighwayName && (edge.highway.includes('NH-54E') || edge.highway.includes('NH-106') || edge.highway.includes('NH-208') || edge.highway.includes('NH-717A'))) {
+        // Prioritize explicit bypass or alternate corridors
+        if (
+          edge.highway.includes('Bypass') ||
+          edge.highway.includes('Alternate') ||
+          edge.highway.includes('NH-306') ||
+          edge.highway.includes('NH-108') ||
+          edge.highway.includes('NH-208') ||
+          edge.highway.includes('NH-717A') ||
+          edge.highway.includes('NH-54E') ||
+          edge.highway.includes('NH-106') ||
+          edge.highway.includes('NH-2')
+        ) {
           chosenEdge = edge
           break
         }
-        chosenEdge = edge
+        if (!chosenEdge) {
+          chosenEdge = edge
+        }
       }
     }
     if (chosenEdge) {
       recommendedHighway = chosenEdge.highway
+    }
+  }
+
+  // Final sanity check: recommendedHighway must never be the blocked road
+  if (blockedHighwayName && (
+    recommendedHighway.toLowerCase().includes(blockedHighwayName.toLowerCase()) ||
+    blockedHighwayName.toLowerCase().includes(recommendedHighway.toLowerCase())
+  )) {
+    if (resolvedDestination === 'Aizawl') {
+      recommendedHighway = 'NH-306 Kolasib–Aizawl Heavy Freight Bypass'
+    } else {
+      recommendedHighway = `Strategic Bypass Corridor (Bypassing ${blockedHighwayName})`
     }
   }
 

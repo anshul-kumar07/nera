@@ -7,6 +7,7 @@ import 'leaflet/dist/leaflet.css'
 import { INITIAL_NER_ROUTES, NER_STRATEGIC_PASSES, NER_STRATEGIC_BRIDGES } from '@/lib/data'
 import { calculateHaversineKm, ActiveRoute, MultiModalVehicleTelemetry } from '@/lib/routing-algorithm'
 import { useLanguage } from '@/lib/LanguageContext'
+import { useUserRole } from '@/lib/RoleContext'
 import { Incident } from '@/lib/supabase'
 import { LastMileAccessibility } from '@/lib/last-mile'
 import { evaluateVehicleReadiness } from '@/lib/vehicle-readiness'
@@ -587,6 +588,8 @@ interface MapInnerProps {
   onReportRouteStatus?: (routeName: string, status: 'blocked' | 'at_risk' | 'open') => void
   onConfirmIncident?: (id: string) => void
   onResolveIncident?: (id: string) => void
+  onAdminSelectCrisisAndRoute?: (params: { lat: number; lng: number; zoneId?: string; zoneTitle?: string }) => void
+  onIssueResolved?: (zoneId?: string) => void
 }
 
 function MapControllerComponent({
@@ -598,31 +601,29 @@ function MapControllerComponent({
   targetView: [number, number, number] | null
   missionPathCoordinates?: [number, number][] | null
   zoomAction: number | null
-  fitRouteTrigger?: number
+  fitRouteTrigger: number
 }) {
   const map = useMap()
 
-  // Handle smooth programmatic state center flyTo
   useEffect(() => {
     if (targetView) {
-      map.flyTo([targetView[0], targetView[1]], targetView[2], { duration: 1.4 })
+      map.setView([targetView[0], targetView[1]], targetView[2], { animate: true })
     }
   }, [targetView, map])
 
-  // Handle zooming actions (+ / -)
   useEffect(() => {
-    if (zoomAction === 1) map.zoomIn()
-    if (zoomAction === -1) map.zoomOut()
+    if (zoomAction) {
+      map.setZoom(map.getZoom() + zoomAction)
+    }
   }, [zoomAction, map])
 
-  // Handle Auto-Fit Active Calculated Route to Screen Bounds
   useEffect(() => {
     if (missionPathCoordinates && missionPathCoordinates.length > 1) {
       try {
         const bounds = L.latLngBounds(missionPathCoordinates.map(c => [c[0], c[1]]))
-        map.fitBounds(bounds, { padding: [70, 70], maxZoom: 11, animate: true, duration: 1.2 })
+        map.fitBounds(bounds, { padding: [50, 50], animate: true })
       } catch (err) {
-        console.warn('Map fitBounds error:', err)
+        console.warn('Map fit bounds failed:', err)
       }
     }
   }, [fitRouteTrigger, missionPathCoordinates, map])
@@ -634,22 +635,29 @@ function MapClickEventsComponent({
   isPinModeActive,
   isSafePinModeActive,
   isPoliceCrisisPinModeActive,
+  isAdminCrisisRouteModeActive,
   onSelectTargetCoords,
   onSelectSafeCoords,
   onSelectCrisisCoords,
+  onAdminSelectCrisisAndRoute,
   onPinPlaced,
 }: {
   isPinModeActive: boolean
   isSafePinModeActive: boolean
   isPoliceCrisisPinModeActive?: boolean
+  isAdminCrisisRouteModeActive?: boolean
   onSelectTargetCoords?: (coords: { lat: number; lng: number }) => void
   onSelectSafeCoords?: (coords: { lat: number; lng: number }) => void
   onSelectCrisisCoords?: (coords: { lat: number; lng: number }) => void
+  onAdminSelectCrisisAndRoute?: (params: { lat: number; lng: number }) => void
   onPinPlaced: () => void
 }) {
   useMapEvents({
     click(e) {
-      if (isPoliceCrisisPinModeActive && onSelectCrisisCoords) {
+      if (isAdminCrisisRouteModeActive && onAdminSelectCrisisAndRoute) {
+        onAdminSelectCrisisAndRoute({ lat: e.latlng.lat, lng: e.latlng.lng })
+        onPinPlaced()
+      } else if (isPoliceCrisisPinModeActive && onSelectCrisisCoords) {
         onSelectCrisisCoords({ lat: e.latlng.lat, lng: e.latlng.lng })
         onPinPlaced()
       } else if (isSafePinModeActive && onSelectSafeCoords) {
@@ -701,12 +709,19 @@ export default function MapInner({
   onConfirmIncident,
   onResolveIncident,
   userRole,
+  onAdminSelectCrisisAndRoute,
+  onIssueResolved,
 }: MapInnerProps & {
   onSelectOriginCoords?: (coords: { lat: number; lng: number; name: string }) => void
   onTriggerSolveCorridor?: () => void
   onToggleMobileSimulator?: () => void
 }) {
   const { t } = useLanguage()
+  const { currentRole } = useUserRole()
+  const effectiveRole = userRole || currentRole || (typeof window !== 'undefined' ? localStorage.getItem('nera_tactical_role') : null) || 'APEX_ADMIN'
+  const isPolice = effectiveRole === 'POLICE_OFFICER' || effectiveRole === 'FIELD_COMMANDER' || effectiveRole === 'police'
+  const isCitizen = effectiveRole === 'CITIZEN_USER' || effectiveRole === 'CITIZEN_DRIVER' || effectiveRole === 'citizen'
+  const isAdmin = !isPolice && !isCitizen
   const {
     crisisZones,
     beacons,
@@ -738,6 +753,8 @@ export default function MapInner({
   const [isPinModeActive, setIsPinModeActive] = useState(false)
   const [isSafePinModeActive, setIsSafePinModeActive] = useState(false)
   const [isPoliceCrisisPinModeActive, setIsPoliceCrisisPinModeActive] = useState(false)
+  const [isAdminCrisisRouteModeActive, setIsAdminCrisisRouteModeActive] = useState(false)
+  const [adminSuccessNotice, setAdminSuccessNotice] = useState<string | null>(null)
   const [pendingCrisisCoords, setPendingCrisisCoords] = useState<{ lat: number; lng: number } | null>(null)
   const [isPoliceCrisisModalOpen, setIsPoliceCrisisModalOpen] = useState(false)
   const [crisisTitle, setCrisisTitle] = useState('Noney–Tupul Mountain Landslide Hazard Zone')
@@ -844,149 +861,201 @@ export default function MapInner({
 
   return (
     <div className="relative w-full h-full font-sans select-none overflow-hidden rounded-lg z-0">
+      {/* ── Admin Instant Dispatch Success Alert Banner ── */}
+      {adminSuccessNotice && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[1000] bg-emerald-950/95 border-2 border-emerald-400 text-white px-4 py-2.5 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-2.5 text-xs font-bold pointer-events-auto animate-in fade-in slide-in-from-top-3 max-w-lg text-center">
+          <span className="text-xl">🚚</span>
+          <span className="leading-snug">{adminSuccessNotice}</span>
+          <button onClick={() => setAdminSuccessNotice(null)} className="ml-2 text-slate-300 hover:text-white text-base cursor-pointer">✕</button>
+        </div>
+      )}
+
       {/* ── UNIFIED NON-OVERLAPPING TOP BAR OVERLAY ── */}
       <div className="absolute top-3 left-3 right-3 z-20 pointer-events-none flex flex-wrap items-center justify-between gap-2.5">
         {/* Left: Search & Tactical 4-Step Action Toolbar */}
         <div className="pointer-events-auto flex items-center gap-2 flex-wrap">
-          {/* Tactical 4-Step Action Toolbar */}
-          <div className="flex items-center gap-1.5 bg-slate-950/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700 shadow-xl flex-wrap">
-            {/* Button 1: Select Supply Origin */}
-            <div className="relative">
-              <button
-                onClick={() => setOriginDropdownOpen(!originDropdownOpen)}
-                className="bg-slate-900 hover:bg-[#213d77] text-white border border-slate-700 hover:border-[#fb792b] px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                title="Select Strategic Pan-India or Regional NER Supply Origin"
-              >
-                <span>📍</span>
-                <span className="truncate max-w-[100px] sm:max-w-none">1. Origin</span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
-              </button>
+          {/* Tactical Action Toolbar (Role Adaptive - ADMIN & POLICE ONLY) */}
+          {!isCitizen && (
+            <div className="flex items-center gap-1.5 bg-slate-950/90 backdrop-blur-md p-1.5 rounded-xl border border-slate-700 shadow-xl flex-wrap">
+              {/* Button 1: Select Supply Origin (ADMIN ONLY) */}
+              {!isPolice && (
+                <div className="relative">
+                  <button
+                    onClick={() => setOriginDropdownOpen(!originDropdownOpen)}
+                    className="bg-slate-900 hover:bg-[#213d77] text-white border border-slate-700 hover:border-[#fb792b] px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                    title="Select Strategic Pan-India or Regional NER Supply Origin"
+                  >
+                    <span>📍</span>
+                    <span className="truncate max-w-[100px] sm:max-w-none">1. Origin</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                  </button>
 
-              {originDropdownOpen && (
-                <div className="absolute left-0 top-full mt-1.5 w-72 bg-slate-950 border border-slate-700 rounded-xl shadow-2xl p-2 z-[2000] text-xs space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 px-2 tracking-wider">Strategic Pan-India Hubs</span>
-                    <div className="space-y-1 mt-1">
-                      {PAN_INDIA_SUPPLY_DEPOTS.filter(d => d.regionType === 'PAN_INDIA_STRATEGIC').map(depot => (
-                        <button
-                          key={depot.id}
-                          onClick={() => {
-                            setOriginDropdownOpen(false)
-                            if (onSelectOriginCoords) {
-                              onSelectOriginCoords({ lat: depot.coordinates[0], lng: depot.coordinates[1], name: depot.name })
-                            } else {
-                              setTargetView([depot.coordinates[0], depot.coordinates[1], 8])
-                            }
-                          }}
-                          className="w-full text-left p-1.5 rounded hover:bg-[#213d77] text-slate-200 transition-colors cursor-pointer"
-                        >
-                          <strong className="block text-white text-[11px]">{depot.name}</strong>
-                          <span className="text-[9.5px] text-emerald-400 block">{depot.role}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  {originDropdownOpen && (
+                    <div className="absolute left-0 top-full mt-1.5 w-72 bg-slate-950 border border-slate-700 rounded-xl shadow-2xl p-2 z-[2000] text-xs space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 px-2 tracking-wider">Strategic Pan-India Hubs</span>
+                        <div className="space-y-1 mt-1">
+                          {PAN_INDIA_SUPPLY_DEPOTS.filter(d => d.regionType === 'PAN_INDIA_STRATEGIC').map(depot => (
+                            <button
+                              key={depot.id}
+                              onClick={() => {
+                                setOriginDropdownOpen(false)
+                                if (onSelectOriginCoords) {
+                                  onSelectOriginCoords({ lat: depot.coordinates[0], lng: depot.coordinates[1], name: depot.name })
+                                } else {
+                                  setTargetView([depot.coordinates[0], depot.coordinates[1], 8])
+                                }
+                              }}
+                              className="w-full text-left p-1.5 rounded hover:bg-[#213d77] text-slate-200 transition-colors cursor-pointer"
+                            >
+                              <strong className="block text-white text-[11px]">{depot.name}</strong>
+                              <span className="text-[9.5px] text-emerald-400 block">{depot.role}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
 
-                  <div className="border-t border-slate-800 pt-1.5">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 px-2 tracking-wider">Regional NER Depots</span>
-                    <div className="space-y-1 mt-1">
-                      {PAN_INDIA_SUPPLY_DEPOTS.filter(d => d.regionType === 'NER_REGIONAL_CORE').map(depot => (
-                        <button
-                          key={depot.id}
-                          onClick={() => {
-                            setOriginDropdownOpen(false)
-                            if (onSelectOriginCoords) {
-                              onSelectOriginCoords({ lat: depot.coordinates[0], lng: depot.coordinates[1], name: depot.name })
-                            } else {
-                              setTargetView([depot.coordinates[0], depot.coordinates[1], 8])
-                            }
-                          }}
-                          className="w-full text-left p-1.5 rounded hover:bg-[#213d77] text-slate-200 transition-colors cursor-pointer"
-                        >
-                          <strong className="block text-white text-[11px]">{depot.name}</strong>
-                          <span className="text-[9.5px] text-blue-300 block">{depot.role}</span>
-                        </button>
-                      ))}
+                      <div className="border-t border-slate-800 pt-1.5">
+                        <span className="text-[10px] uppercase font-bold text-slate-400 px-2 tracking-wider">Regional NER Depots</span>
+                        <div className="space-y-1 mt-1">
+                          {PAN_INDIA_SUPPLY_DEPOTS.filter(d => d.regionType === 'NER_REGIONAL_CORE').map(depot => (
+                            <button
+                              key={depot.id}
+                              onClick={() => {
+                                setOriginDropdownOpen(false)
+                                if (onSelectOriginCoords) {
+                                  onSelectOriginCoords({ lat: depot.coordinates[0], lng: depot.coordinates[1], name: depot.name })
+                                } else {
+                                  setTargetView([depot.coordinates[0], depot.coordinates[1], 8])
+                                }
+                              }}
+                              className="w-full text-left p-1.5 rounded hover:bg-[#213d77] text-slate-200 transition-colors cursor-pointer"
+                            >
+                              <strong className="block text-white text-[11px]">{depot.name}</strong>
+                              <span className="text-[9.5px] text-emerald-400 block">{depot.role}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               )}
+
+              {/* Button: Mark Crisis & Dynamic Auto-Route (ADMIN: 2. Mark Crisis & Route / POLICE: 1. Mark Hazard Location) */}
+              <button
+                onClick={() => {
+                  if (isAdmin) {
+                    setIsAdminCrisisRouteModeActive(!isAdminCrisisRouteModeActive)
+                    if (isPoliceCrisisPinModeActive) setIsPoliceCrisisPinModeActive(false)
+                    if (isSafePinModeActive) setIsSafePinModeActive(false)
+                    if (isPinModeActive) setIsPinModeActive(false)
+                  } else {
+                    setIsPoliceCrisisPinModeActive(!isPoliceCrisisPinModeActive)
+                    if (isPinModeActive) setIsPinModeActive(false)
+                    if (isSafePinModeActive) setIsSafePinModeActive(false)
+                    if (isAdminCrisisRouteModeActive) setIsAdminCrisisRouteModeActive(false)
+                  }
+                }}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5 shadow-xs ${
+                  (isAdmin ? isAdminCrisisRouteModeActive : isPoliceCrisisPinModeActive)
+                    ? 'bg-rose-600 text-white border-rose-500 ring-2 ring-rose-400/50 animate-pulse'
+                    : 'bg-rose-950/90 hover:bg-rose-900 text-rose-200 border-rose-700 hover:border-rose-500'
+                }`}
+                title={
+                  isAdmin
+                    ? "Admin: Tap any spot or police-reported crisis area to immediately solve optimal corridor & stream live vehicle tracking to Citizen Portal"
+                    : "Police: Tap map to mark a Disaster Crisis Hazard Location with danger perimeter"
+                }
+              >
+                <span className="text-sm">🚨</span>
+                <span className="truncate max-w-[150px] sm:max-w-none">
+                  {isAdmin
+                    ? (isAdminCrisisRouteModeActive ? '🎯 Tap Spot to Auto-Route' : '2. Mark Crisis & Route')
+                    : (isPoliceCrisisPinModeActive ? 'Tap Location to Mark' : '1. Mark Hazard Location')}
+                </span>
+              </button>
+
+              {/* Button: Mark Safe Area / Evacuation Refuge */}
+              <button
+                onClick={() => {
+                  setIsSafePinModeActive(!isSafePinModeActive)
+                  if (isPinModeActive) setIsPinModeActive(false)
+                  if (isPoliceCrisisPinModeActive) setIsPoliceCrisisPinModeActive(false)
+                  if (isAdminCrisisRouteModeActive) setIsAdminCrisisRouteModeActive(false)
+                }}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5 shadow-xs ${
+                  isSafePinModeActive
+                    ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse'
+                    : 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border-emerald-600 hover:border-emerald-400'
+                }`}
+                title="Escaped crisis? Tap map to mark a safe refuge point for others to evacuate towards"
+              >
+                <span className="text-sm">⛺</span>
+                <span className="truncate max-w-[125px] sm:max-w-none">
+                  {isPolice ? (isSafePinModeActive ? 'Tap Safe Spot' : '2. Mark Safe Area') : (isSafePinModeActive ? 'Tap Safe Spot' : 'Mark Safe Area')}
+                </span>
+              </button>
+
+              {/* Button 3: Generate Tactical Corridor (ADMIN ONLY - Police do not see or generate supply routes) */}
+              {!isPolice && (
+                <button
+                  onClick={() => {
+                    if (onTriggerSolveCorridor) {
+                      onTriggerSolveCorridor()
+                    } else {
+                      setFitRouteTrigger(Date.now())
+                    }
+                  }}
+                  className="bg-[#16a34a] hover:bg-[#15803d] text-white font-bold px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  title="Solve OSRM/Dijkstra routing, set VAP roadhead, and detect along-route police stations"
+                >
+                  <span>⚡</span>
+                  <span className="hidden sm:inline">3. Generate Corridor</span>
+                  <span className="sm:hidden">3. Solve</span>
+                </button>
+              )}
+
+              {/* Button: Clear Location / Issue Resolved */}
+              <button
+                onClick={() => {
+                  if (onIssueResolved) onIssueResolved()
+                  if (crisisZones.length > 0) {
+                    crisisZones.forEach(z => {
+                      resolveAndClearCrisisZone({
+                        zoneId: z.id,
+                        officerName: isPolice ? 'Duty Sector Police' : 'State EOC Admin',
+                        resolutionNotes: 'Hazard cleared, ground obstacle normalized and cleared from map.',
+                      })
+                    })
+                  }
+                  setAdminSuccessNotice(isPolice ? '✅ Location Cleared: Hazard resolved and road reopened.' : '✅ Map Cleared: Active corridor and crisis target normalized.')
+                  setTimeout(() => setAdminSuccessNotice(null), 6000)
+                }}
+                className="bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-600 hover:border-emerald-400 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title={isPolice ? "Clear active disaster hazard location from map" : "Clear all active corridors and normalized map"}
+              >
+                <span>✅</span>
+                <span className="hidden sm:inline">{isPolice ? '3. Clear Location (Resolved)' : 'Clear Map'}</span>
+                <span className="sm:hidden">Clear</span>
+              </button>
+
+              {/* Button 4: Live Mobile SMS / Comms */}
+              <button
+                onClick={() => {
+                  if (onToggleMobileSimulator) {
+                    onToggleMobileSimulator()
+                  }
+                }}
+                className="bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-600/70 hover:border-amber-400 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title={isPolice ? "Police Radio & Incident Dispatch Log" : "Toggle Live Mobile Dispatch & SMS Receiver Simulator"}
+              >
+                <span>📱</span>
+                <span className="hidden sm:inline">{isPolice ? '4. Police Comms' : '4. Mobile SMS'}</span>
+                <span className="sm:hidden">SMS</span>
+              </button>
             </div>
-
-            {/* Button 2: Mark Disaster Crisis Area (Unified for Admin, Police, and All Users) */}
-            <button
-              onClick={() => {
-                setIsPoliceCrisisPinModeActive(!isPoliceCrisisPinModeActive)
-                if (isPinModeActive) setIsPinModeActive(false)
-                if (isSafePinModeActive) setIsSafePinModeActive(false)
-              }}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5 shadow-xs ${
-                isPoliceCrisisPinModeActive
-                  ? 'bg-rose-600 text-white border-rose-500 ring-2 ring-rose-400/50 animate-pulse'
-                  : 'bg-rose-950/90 hover:bg-rose-900 text-rose-200 border-rose-700 hover:border-rose-500'
-              }`}
-              title="Click map to mark a Disaster Crisis Hazard Zone with evacuation danger perimeter"
-            >
-              <span className="text-sm">🚨</span>
-              <span className="truncate max-w-[125px] sm:max-w-none">
-                {isPoliceCrisisPinModeActive ? 'Tap Crisis Spot' : '2. Mark Crisis'}
-              </span>
-            </button>
-
-            {/* Button: Mark Safe Area / Evacuation Refuge (Prominent for Citizens & All Roles) */}
-            <button
-              onClick={() => {
-                setIsSafePinModeActive(!isSafePinModeActive)
-                if (isPinModeActive) setIsPinModeActive(false)
-                if (isPoliceCrisisPinModeActive) setIsPoliceCrisisPinModeActive(false)
-              }}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all border cursor-pointer flex items-center gap-1.5 shadow-xs ${
-                isSafePinModeActive
-                  ? 'bg-emerald-600 text-white border-emerald-400 ring-2 ring-emerald-400/50 animate-pulse'
-                  : 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-200 border-emerald-600 hover:border-emerald-400'
-              }`}
-              title="Escaped crisis? Tap map to mark a safe refuge point for others to evacuate towards"
-            >
-              <span className="text-sm">⛺</span>
-              <span className="truncate max-w-[125px] sm:max-w-none">
-                {isSafePinModeActive ? 'Tap Safe Spot' : 'Mark Safe Area'}
-              </span>
-            </button>
-
-            {/* Button 3: Generate Tactical Corridor */}
-            <button
-              onClick={() => {
-                if (onTriggerSolveCorridor) {
-                  onTriggerSolveCorridor()
-                } else {
-                  setFitRouteTrigger(Date.now())
-                }
-              }}
-              className="bg-[#16a34a] hover:bg-[#15803d] text-white font-bold px-2.5 py-1.5 rounded-lg text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              title="Solve OSRM/Dijkstra routing, set VAP roadhead, and detect along-route police stations"
-            >
-              <span>⚡</span>
-              <span className="hidden sm:inline">3. Generate Corridor</span>
-              <span className="sm:hidden">3. Solve</span>
-            </button>
-
-            {/* Button 4: Live Mobile SMS */}
-            <button
-              onClick={() => {
-                if (onToggleMobileSimulator) {
-                  onToggleMobileSimulator()
-                } else {
-                  setIsMobileSimulatorOpen(true)
-                }
-              }}
-              className="bg-slate-900 hover:bg-slate-800 text-white border border-[#fb792b] px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-              title="Toggle Live Mobile Dispatch & SMS Receiver Simulator"
-            >
-              <Smartphone className="w-3.5 h-3.5 text-[#fb792b]" />
-              <span className="hidden sm:inline">4. Mobile SMS</span>
-              <span className="sm:hidden">SMS</span>
-            </button>
-          </div>
+          )}
 
           {/* Search Highway Input */}
           <div className="bg-white/95 backdrop-blur-md text-gray-900 rounded-lg shadow-md border border-slate-300 px-3 py-1.5 hidden md:flex items-center gap-2 w-44">
@@ -1055,8 +1124,8 @@ export default function MapInner({
         </div>
       </div>
 
-      {/* ── 🎬 CONVOY SIMULATION & TELEMETRY CONTROLLER BAR (BOTTOM-CENTER DOCK) ── */}
-      {missionPathCoordinates && missionPathCoordinates.length > 1 && (
+      {/* ── 🎬 CONVOY SIMULATION & TELEMETRY CONTROLLER BAR (BOTTOM-CENTER DOCK - ADMIN & CITIZENS ONLY) ── */}
+      {!isPolice && missionPathCoordinates && missionPathCoordinates.length > 1 && (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 pointer-events-auto bg-slate-950/95 backdrop-blur-md border border-slate-700 text-slate-100 px-4 py-2 rounded-2xl shadow-2xl flex items-center gap-3 max-w-lg w-[94%] sm:w-auto">
           {/* Play / Pause Toggle */}
           <button
@@ -1345,6 +1414,7 @@ export default function MapInner({
           isPinModeActive={isPinModeActive}
           isSafePinModeActive={isSafePinModeActive}
           isPoliceCrisisPinModeActive={isPoliceCrisisPinModeActive}
+          isAdminCrisisRouteModeActive={isAdminCrisisRouteModeActive}
           onSelectTargetCoords={onSelectTargetCoords}
           onSelectSafeCoords={(coords) => {
             setPendingSafeCoords(coords)
@@ -1356,10 +1426,21 @@ export default function MapInner({
             setIsPoliceCrisisModalOpen(true)
             setIsPoliceCrisisPinModeActive(false)
           }}
+          onAdminSelectCrisisAndRoute={(coords) => {
+            setIsAdminCrisisRouteModeActive(false)
+            if (onAdminSelectCrisisAndRoute) {
+              onAdminSelectCrisisAndRoute(coords)
+            } else if (onSelectTargetCoords) {
+              onSelectTargetCoords(coords)
+            }
+            setAdminSuccessNotice('⚡ Tactical Corridor Generated & Convoy Dispatched! Live tracking streaming to Citizen Portal.')
+            setTimeout(() => setAdminSuccessNotice(null), 8000)
+          }}
           onPinPlaced={() => {
             setIsPinModeActive(false)
             setIsSafePinModeActive(false)
             setIsPoliceCrisisPinModeActive(false)
+            setIsAdminCrisisRouteModeActive(false)
           }}
         />
 
@@ -1942,112 +2023,20 @@ export default function MapInner({
 
           return (
             <React.Fragment key={zone.id}>
-              {/* 🛣️ Live Calculated Crisis Route Polyline on Map (Visible to Admin, Police, and Citizens) */}
-              {(zone.assignedRouteCoordinates || zone.reroutedRouteCoordinates) && zone.workflowStatus !== 'CRISIS_MARKED' && (
-                <>
-                  {/* Outer High-Visibility Glow Ribbon */}
-                  <Polyline
-                    positions={
-                      zone.workflowStatus === 'ADMIN_REROUTED' && zone.reroutedRouteCoordinates
-                        ? zone.reroutedRouteCoordinates
-                        : zone.assignedRouteCoordinates || []
-                    }
-                    pathOptions={{
-                      color:
-                        zone.workflowStatus === 'POLICE_VERIFIED'
-                          ? '#10b981'
-                          : zone.workflowStatus === 'POLICE_REROUTE_REQUESTED'
-                          ? '#ef4444'
-                          : zone.workflowStatus === 'ADMIN_REROUTED'
-                          ? '#8b5cf6'
-                          : '#0284c7',
-                      weight: zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' ? 10 : 13,
-                      opacity: 0.35,
-                      lineCap: 'round',
-                      lineJoin: 'round',
-                      dashArray: zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' ? '10, 10' : undefined,
-                    }}
-                  />
-
-                  {/* Core Tactical Road Route Line */}
-                  <Polyline
-                    positions={
-                      zone.workflowStatus === 'ADMIN_REROUTED' && zone.reroutedRouteCoordinates
-                        ? zone.reroutedRouteCoordinates
-                        : zone.assignedRouteCoordinates || []
-                    }
-                    pathOptions={{
-                      color:
-                        zone.workflowStatus === 'POLICE_VERIFIED'
-                          ? '#059669'
-                          : zone.workflowStatus === 'POLICE_REROUTE_REQUESTED'
-                          ? '#dc2626'
-                          : zone.workflowStatus === 'ADMIN_REROUTED'
-                          ? '#7c3aed'
-                          : '#0ea5e9',
-                      weight: 4.5,
-                      opacity: 1.0,
-                      dashArray:
-                        zone.workflowStatus === 'POLICE_REROUTE_REQUESTED'
-                          ? '8, 8'
-                          : zone.workflowStatus === 'ADMIN_REROUTED'
-                          ? '6, 6'
-                          : undefined,
-                    }}
-                  >
-                    <Popup>
-                      <div className="text-xs p-2.5 max-w-xs space-y-1.5 font-sans">
-                        <div className="flex items-center justify-between border-b pb-1">
-                          <span className={`font-black text-xs ${
-                            zone.workflowStatus === 'POLICE_VERIFIED' ? 'text-emerald-700' :
-                            zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' ? 'text-rose-700' :
-                            zone.workflowStatus === 'ADMIN_REROUTED' ? 'text-purple-700' : 'text-blue-700'
-                          }`}>
-                            {zone.workflowStatus === 'POLICE_VERIFIED' ? '✅ Passable Relief Corridor' :
-                             zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' ? '🛑 Compromised Corridor' :
-                             zone.workflowStatus === 'ADMIN_REROUTED' ? '🔄 Alternate Bypass Corridor' :
-                             '⚡ Admin Calculated Route'}
-                          </span>
-                          <span className="font-mono text-[9.5px] px-1 py-0.5 rounded font-bold bg-slate-100">
-                            {zone.workflowStatus}
-                          </span>
-                        </div>
-                        <p className="font-bold text-slate-900 text-xs">
-                          {zone.workflowStatus === 'ADMIN_REROUTED'
-                            ? zone.reroutedRouteName
-                            : zone.assignedRouteName}
-                        </p>
-                        <p className="text-[11px] text-slate-600">
-                          Transport: <strong>{zone.workflowStatus === 'ADMIN_REROUTED' ? zone.reroutedVehicleName : zone.assignedVehicleName}</strong>
-                        </p>
-                        {zone.policeObstacleReport && (
-                          <div className="bg-rose-100 p-1.5 rounded border border-rose-300 text-rose-900 text-[10.5px]">
-                            <strong>Obstacle:</strong> {zone.policeObstacleReport}
-                          </div>
-                        )}
-                        <p className="text-[10px] text-slate-500 font-mono">
-                          Target: {zone.title} ({(zone.radiusMeters / 1000).toFixed(1)} km Radius)
-                        </p>
-                      </div>
-                    </Popup>
-                  </Polyline>
-
-                  {/* Obstacle Marker if Re-Route Requested (Placed at ~60% of corridor) */}
-                  {zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' && zone.assignedRouteCoordinates && zone.assignedRouteCoordinates.length > 5 && (
-                    <Marker
-                      position={zone.assignedRouteCoordinates[Math.floor(zone.assignedRouteCoordinates.length * 0.6)]}
-                      icon={createObstacleHazardIcon(zone.policeObstacleReport)}
-                    >
-                      <Popup>
-                        <div className="text-xs p-2 font-sans space-y-1">
-                          <span className="font-bold text-rose-700 block">🛑 POLICE REPORTED OBSTACLE</span>
-                          <p className="text-slate-900 font-bold text-xs">{zone.policeObstacleReport || 'Road blockage reported by OC'}</p>
-                          <p className="text-slate-600 text-[10.5px]">Corridor severed. Awaiting State EOC Admin alternate re-routing.</p>
-                        </div>
-                      </Popup>
-                    </Marker>
-                  )}
-                </>
+              {/* Obstacle Hazard Marker if Re-Route Requested by Police */}
+              {!isPolice && zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' && zone.assignedRouteCoordinates && zone.assignedRouteCoordinates.length > 5 && (
+                <Marker
+                  position={zone.assignedRouteCoordinates[Math.floor(zone.assignedRouteCoordinates.length * 0.6)]}
+                  icon={createObstacleHazardIcon(zone.policeObstacleReport)}
+                >
+                  <Popup>
+                    <div className="text-xs p-2 font-sans space-y-1">
+                      <span className="font-bold text-rose-700 block">🛑 POLICE REPORTED OBSTACLE</span>
+                      <p className="text-slate-900 font-bold text-xs">{zone.policeObstacleReport || 'Road blockage reported by OC'}</p>
+                      <p className="text-slate-600 text-[10.5px]">Corridor severed. Awaiting State EOC Admin alternate re-routing.</p>
+                    </div>
+                  </Popup>
+                </Marker>
               )}
 
               {/* Statutory Red Dashed Danger Circle */}
@@ -2073,10 +2062,10 @@ export default function MapInner({
                     {/* Header */}
                     <div className="flex items-center justify-between border-b border-rose-200 pb-1">
                       <span className="font-black text-rose-900 text-xs flex items-center gap-1">
-                        <span>🚨</span> CRISIS ZONE
+                        <span>🚨</span> {isPolice ? 'HAZARD LOCATION' : 'CRISIS ZONE'}
                       </span>
                       <span className="text-[9.5px] bg-rose-100 text-rose-900 font-mono font-bold px-1.5 py-0.2 rounded border border-rose-300">
-                        {(zone.radiusMeters / 1000).toFixed(1)} KM DANGER
+                        {(zone.radiusMeters / 1000).toFixed(1)} KM PERIMETER
                       </span>
                     </div>
 
@@ -2085,116 +2074,100 @@ export default function MapInner({
                       <strong className="text-slate-900 text-xs font-bold block leading-snug">{zone.title}</strong>
                       <div className="flex items-center justify-between text-[10px] text-slate-500 mt-0.5 font-mono">
                         <span className="truncate">{zone.policeStation}</span>
-                        <span className={`font-bold uppercase ${
-                          isVerified ? 'text-emerald-600' : isReRouteReq ? 'text-rose-600 animate-pulse' : 'text-amber-600'
-                        }`}>
-                          {zone.workflowStatus}
+                        <span className="text-rose-600 font-bold uppercase">
+                          {zone.hazardType || 'DISRUPTION'}
                         </span>
                       </div>
                     </div>
 
-                    {/* Corridor Directorship Status */}
-                    <div className="bg-rose-50 border border-rose-200 rounded-lg p-2 space-y-1 text-[10.5px]">
-                      <div className="flex items-center justify-between font-bold text-rose-950">
-                        <span>🛣️ Corridor:</span>
-                        <span className="bg-white text-rose-900 font-mono font-bold px-1 rounded border border-rose-200 text-[9.5px]">
-                          {zone.assignedVehicleName || '4x4 Fleet'}
-                        </span>
-                      </div>
-                      <p className="text-slate-800 font-medium leading-tight">
-                        {zone.reroutedRouteName
-                          ? `🔄 ${zone.reroutedRouteName}`
-                          : zone.assignedRouteName
-                          ? `⚡ ${zone.assignedRouteName}`
-                          : '⏳ Awaiting Admin route assignment.'}
-                      </p>
-                      {zone.policeObstacleReport && (
-                        <div className="text-rose-900 bg-rose-100 p-1 rounded border border-rose-300 font-semibold text-[10px]">
-                          🛑 <strong>Obstacle:</strong> {zone.policeObstacleReport}
+                    {/* Content: Admin Corridor vs Police Ground Reality */}
+                    {!isPolice ? (
+                      <div className="bg-rose-50 border border-rose-200 rounded-lg p-2 space-y-1 text-[10.5px]">
+                        <div className="flex items-center justify-between font-bold text-rose-950">
+                          <span>🛣️ Corridor:</span>
+                          <span className="bg-white text-rose-900 font-mono font-bold px-1 rounded border border-rose-200 text-[9.5px]">
+                            {zone.assignedVehicleName || '4x4 Fleet'}
+                          </span>
                         </div>
-                      )}
-                    </div>
+                        <p className="text-slate-800 font-medium leading-tight">
+                          {zone.reroutedRouteName
+                            ? `🔄 ${zone.reroutedRouteName}`
+                            : zone.assignedRouteName
+                            ? `⚡ ${zone.assignedRouteName}`
+                            : '⏳ Awaiting Admin route assignment.'}
+                        </p>
+                        {zone.policeObstacleReport && (
+                          <div className="text-rose-900 bg-rose-100 p-1 rounded border border-rose-300 font-semibold text-[10px]">
+                            🛑 <strong>Obstacle:</strong> {zone.policeObstacleReport}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-2 space-y-1 text-[10.5px] text-slate-700">
+                        <p>📍 <strong>Coordinates:</strong> {zone.lat.toFixed(4)}, {zone.lng.toFixed(4)}</p>
+                        <p>👮 <strong>Police Thana:</strong> {zone.policeStation}</p>
+                        <p>⚠️ <strong>Hazard Type:</strong> {zone.hazardType}</p>
+                      </div>
+                    )}
 
                     {/* Interactive Action Triggers */}
-                    <div className="space-y-1 pt-1 border-t border-slate-200">
-                      {zone.workflowStatus === 'CRISIS_MARKED' && (
+                    <div className="space-y-1.5 pt-1 border-t border-slate-200">
+                      {isAdmin && zone.workflowStatus === 'CRISIS_MARKED' && (
                         <button
                           onClick={() => {
-                            adminAssignRouteToCrisisZone({
-                              zoneId: zone.id,
-                              assignedRouteName: 'NH-37 Tupul Bypass via North Ridge Footpath (km 48)',
-                              assignedVehicleCategory: 'HILL_4X4_OFFROAD_2T',
-                              assignedVehicleName: 'Hill 4x4 Off-Road Bolero Fleet',
-                              adminNotes: 'State EOC Admin designated 4x4 Hill Corridor.',
-                            })
-                            if (onSelectTargetCoords) onSelectTargetCoords({ lat: zone.lat, lng: zone.lng })
+                            if (onAdminSelectCrisisAndRoute) {
+                              onAdminSelectCrisisAndRoute({
+                                lat: zone.lat,
+                                lng: zone.lng,
+                                zoneId: zone.id,
+                                zoneTitle: zone.title,
+                              })
+                              setAdminSuccessNotice(`⚡ Route Auto-Calculated for ${zone.title}! Convoy dispatched & streaming to Citizen Portal.`)
+                              setTimeout(() => setAdminSuccessNotice(null), 8000)
+                            }
                           }}
                           className="w-full bg-[#fb792b] hover:bg-[#e06820] text-white font-bold py-1.5 px-2 rounded-md text-[10.5px] flex items-center justify-center gap-1 shadow-xs cursor-pointer"
                         >
-                          <span>⚡</span> Calculate & Assign Route
+                          <span>⚡</span> Auto-Select Route & Dispatch Convoy
                         </button>
                       )}
 
-                      {(zone.workflowStatus === 'ROUTE_ASSIGNED' || zone.workflowStatus === 'ADMIN_REROUTED') && (
-                        <div className="grid grid-cols-2 gap-1">
-                          <button
-                            onClick={() => policeVerifyRoute({
-                              zoneId: zone.id,
-                              officerName: 'OC Inspector R. Barman',
-                              notes: 'Ground passable. Clear for convoy transit.',
-                            })}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-1 rounded-md text-[10px] flex items-center justify-center gap-0.5 cursor-pointer"
-                          >
-                            <span>✅</span> Verify Passable
-                          </button>
-                          <button
-                            onClick={() => policeRequestReroute({
-                              zoneId: zone.id,
-                              officerName: 'OC Inspector R. Barman',
-                              obstacleDescription: 'Culvert collapsed at km 94. Cannot take 4x4; request Airbridge.',
-                            })}
-                            className="bg-rose-700 hover:bg-rose-800 text-white font-bold py-1.5 px-1 rounded-md text-[10px] flex items-center justify-center gap-0.5 cursor-pointer"
-                          >
-                            <span>🛑</span> Report Obstacle
-                          </button>
-                        </div>
-                      )}
-
-                      {zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' && (
+                      {isAdmin && zone.workflowStatus !== 'CRISIS_MARKED' && (
                         <button
                           onClick={() => {
-                            adminRerouteCrisisZone({
-                              zoneId: zone.id,
-                              newRouteName: 'NH-2 Mao Sector / IAF MI-17 Rotary Airbridge',
-                              newVehicleCategory: 'IAF_MI17_HELI_AIRLIFT',
-                              newVehicleName: 'IAF Mi-17 V5 Heavy Airlift',
-                              adminNotes: 'State EOC Admin re-routed to Mi-17 Airbridge.',
-                            })
-                            if (onSelectTargetCoords) onSelectTargetCoords({ lat: zone.lat, lng: zone.lng })
+                            if (onAdminSelectCrisisAndRoute) {
+                              onAdminSelectCrisisAndRoute({
+                                lat: zone.lat,
+                                lng: zone.lng,
+                                zoneId: zone.id,
+                                zoneTitle: zone.title,
+                              })
+                              setAdminSuccessNotice(`⚡ Recalculating Route & Convoy for ${zone.title}...`)
+                              setTimeout(() => setAdminSuccessNotice(null), 8000)
+                            }
                           }}
-                          className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-1.5 px-2 rounded-md text-[10.5px] flex items-center justify-center gap-1 shadow-xs cursor-pointer animate-pulse"
+                          className="w-full bg-[#213d77] hover:bg-[#1b3162] text-white font-bold py-1 px-2 rounded-md text-[9.5px] flex items-center justify-center gap-1 shadow-xs cursor-pointer mb-1"
                         >
-                          <span>🔄</span> Re-Route to IAF Airbridge
+                          <span>🔄</span> Admin Re-Solve Tactical Corridor Here
                         </button>
                       )}
 
-                      {zone.workflowStatus === 'POLICE_VERIFIED' && (
-                        <div className="py-1 px-2 bg-emerald-100 border border-emerald-300 rounded text-emerald-900 font-bold text-center text-[10px]">
-                          ✅ Route 100% Cleared & Verified
-                        </div>
-                      )}
-
-                      {/* Issue Resolved */}
+                      {/* Issue Resolved / Clear Location (Primary Button for Police and Admin) */}
                       <button
-                        onClick={() => resolveAndClearCrisisZone({
-                          zoneId: zone.id,
-                          officerName: 'Duty Inspection Officer',
-                          resolutionNotes: 'Hazard cleared and highway reopened.',
-                        })}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-md text-[10.5px] flex items-center justify-center gap-1 shadow-xs cursor-pointer transition-all"
+                        onClick={() => {
+                          if (onIssueResolved) onIssueResolved(zone.id)
+                          resolveAndClearCrisisZone({
+                            zoneId: zone.id,
+                            officerName: isPolice ? 'Duty Patrol Inspector' : 'State EOC Admin',
+                            resolutionNotes: 'Hazard cleared, ground obstacle resolved, location normalized.',
+                          })
+                          setAdminSuccessNotice(`✅ Issue Resolved: Cleared "${zone.title}" from map!`)
+                          setTimeout(() => setAdminSuccessNotice(null), 6000)
+                        }}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-2 rounded-md text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer transition-all"
                       >
-                        <span>🎉</span>
-                        <span>Issue Resolved (Clear from Map)</span>
+                        <span>✅</span>
+                        <span className="font-extrabold">{isPolice ? 'Mark Issue Resolved (Clear Location)' : 'Issue Resolved (Clear from Map)'}</span>
                       </button>
                     </div>
 

@@ -80,7 +80,7 @@ import {
 } from 'lucide-react'
 import { useLanguage } from '@/lib/LanguageContext'
 import { useUserRole } from '@/lib/RoleContext'
-import { useDisasterComms } from '@/lib/disaster-comms-store'
+import { useDisasterComms, PoliceCrisisZone } from '@/lib/disaster-comms-store'
 import LiveMobileNotificationSimulator, { MobileReportPayload } from '@/components/LiveMobileNotificationSimulator'
 
 // Strategic National & Regional Supply Reserve Hubs across Pan-India
@@ -149,14 +149,21 @@ function MapPageContent() {
   const searchParams = useSearchParams()
   const { t } = useLanguage()
   const { currentRole, roleConfig } = useUserRole()
+  const isPolice = currentRole === 'POLICE_OFFICER' || currentRole === 'FIELD_COMMANDER'
+  const isCitizen = currentRole === 'CITIZEN_USER' || currentRole === 'CITIZEN_DRIVER'
+  const isAdmin = !isPolice && !isCitizen
+
   const {
     crisisZones,
     beacons,
+    activeCorridor,
+    adminActivateTacticalCorridor,
     adminAssignRouteToCrisisZone,
     policeVerifyRoute,
     policeRequestReroute,
     adminRerouteCrisisZone,
     resolveAndClearCrisisZone,
+    clearActiveCorridor,
   } = useDisasterComms()
   const {
     activeIncidents,
@@ -348,12 +355,30 @@ function MapPageContent() {
       })
       const data = await res.json()
       if (data && !data.error) {
-        setSuggestion({
+        const fullSuggestion = {
           ...data,
           origin: originHub,
           destination: customCoords ? `Target Pin [${customCoords.lat.toFixed(2)}, ${customCoords.lng.toFixed(2)}]` : dest,
           blockedRoad: blockedName,
-        })
+        }
+        setSuggestion(fullSuggestion)
+
+        // Automatically activate tactical corridor in the unified store so Citizen Portal tracks live!
+        if (customCoords) {
+          adminActivateTacticalCorridor({
+            corridorName: data.recommended_route || 'Strategic Multi-Modal Corridor',
+            originHub: originHub,
+            destinationTarget: `Crisis Target (${customCoords.lat.toFixed(3)}, ${customCoords.lng.toFixed(3)})`,
+            targetCoords: customCoords,
+            pathCoordinates: data.path_coordinates || [],
+            vehicleTelemetry: data.vehicle_telemetry || null,
+            cargoType: cargoType,
+            etaMinutes: Math.round((data.estimated_delay_hours || 1.5) * 60),
+            distanceKm: Math.round(data.distance_km || 180),
+            assignedVehicleName: data.vehicle_telemetry?.vehicleModel || 'Hill 4x4 Off-Road Bolero (NER-TRUCK-18)',
+            assignedVehicleCategory: 'HILL_4X4_OFFROAD_2T',
+          })
+        }
       }
     } catch (err) {
       console.warn('Auto route suggest fallback:', err)
@@ -361,6 +386,28 @@ function MapPageContent() {
       setLoading(false)
     }
   }
+
+  // Hydrate active corridor from store if already active across all portals (Admin, Police, Citizens)
+  useEffect(() => {
+    if (activeCorridor?.status === 'ACTIVE_DISPATCH' && activeCorridor.targetCoords && !customTargetCoords) {
+      setCustomTargetCoords(activeCorridor.targetCoords)
+      if (activeCorridor.originHub) setOriginHub(activeCorridor.originHub)
+      if (activeCorridor.pathCoordinates && activeCorridor.pathCoordinates.length > 0) {
+        setSuggestion({
+          recommended_route: activeCorridor.corridorName,
+          estimated_delay_hours: (activeCorridor.etaMinutes || 60) / 60,
+          reason: activeCorridor.statutoryDirectiveText,
+          special_instructions: 'Priority relief corridor cleared under statutory disaster command with live GPS convoy tracking.',
+          path_coordinates: activeCorridor.pathCoordinates,
+          vehicle_telemetry: activeCorridor.vehicleTelemetry,
+          distance_km: activeCorridor.distanceKm || 180,
+          origin: activeCorridor.originHub,
+          destination: activeCorridor.destinationTarget,
+          risk_level: 'low',
+        })
+      }
+    }
+  }, [activeCorridor, customTargetCoords])
 
   useEffect(() => {
     let ignore = false
@@ -373,6 +420,25 @@ function MapPageContent() {
     }
   }, [])
 
+  // Immediate Admin Crisis Marking & Route Selection Engine
+  const handleAdminSelectCrisisAndRoute = async (params: {
+    lat: number
+    lng: number
+    zoneId?: string
+    zoneTitle?: string
+  }) => {
+    const coords = { lat: params.lat, lng: params.lng }
+    setCustomTargetCoords(coords)
+    const detected = autoDetectOptimalSupplyOrigin(coords.lat, coords.lng)
+    setAutoDetectedOrigin(detected)
+    setOriginHub(detected.depotId)
+    const hospital = findClosestMedicalFacility(coords.lat, coords.lng)
+    setClosestHospital(hospital)
+
+    // Immediately calculate route & corridor via /api/route-suggest without any modal blocking
+    await triggerAutoSuggest(selectedRoute, routes, params.zoneTitle, coords)
+  }
+
   // Handle direct map click to mark any custom target area
   const handleMapTargetSelected = (coords: { lat: number; lng: number }) => {
     setCustomTargetCoords(coords)
@@ -381,7 +447,8 @@ function MapPageContent() {
     setOriginHub(detected.depotId)
     const hospital = findClosestMedicalFacility(coords.lat, coords.lng)
     setClosestHospital(hospital)
-    setCrisisModalOpen(true)
+    // Run auto-suggest directly
+    triggerAutoSuggest(selectedRoute, routes, undefined, coords)
   }
 
   const handleLaunchCrisisMission = async () => {
@@ -585,10 +652,112 @@ function MapPageContent() {
     }
   }
 
+  const handleExecuteRealReroute = async (zone: PoliceCrisisZone) => {
+    // 1. Identify the compromised road corridor to avoid
+    const compromisedRoute = zone.assignedRouteName || suggestion?.recommended_route || selectedRoute || 'NH-54'
+
+    // 2. Mark this road as blocked in state
+    const updatedRoutes = routes.map(r => {
+      const isMatch =
+        r.name.toLowerCase().includes(compromisedRoute.toLowerCase()) ||
+        compromisedRoute.toLowerCase().includes(r.name.toLowerCase()) ||
+        (r.highway_number && compromisedRoute.toLowerCase().includes(r.highway_number.toLowerCase()))
+      return isMatch ? { ...r, status: 'blocked' } : r
+    })
+    setRoutes(updatedRoutes)
+
+    // 3. Trigger auto-suggest to find the REAL alternate bypass road (via Dijkstra + OSRM)
+    setLoading(true)
+    try {
+      const res = await fetch('/api/route-suggest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          blockedRoute: compromisedRoute,
+          availableRoutes: updatedRoutes.filter(r => r.status === 'open').map(r => r.name),
+          cargoType,
+          origin: originHub,
+          destination: destinationDepot,
+          customTargetCoords: { lat: zone.lat, lng: zone.lng },
+          weatherCondition,
+          incidents: activeIncidents,
+        }),
+      })
+      const data = await res.json()
+      if (data && !data.error) {
+        const fullSuggestion = {
+          ...data,
+          origin: originHub,
+          destination: `Crisis Target [${zone.lat.toFixed(2)}, ${zone.lng.toFixed(2)}]`,
+          blockedRoad: compromisedRoute,
+        }
+        setSuggestion(fullSuggestion)
+        setSelectedRoute(data.recommended_route)
+
+        // 4. Update the crisis zone workflow status with the REAL alternate bypass route
+        adminRerouteCrisisZone({
+          zoneId: zone.id,
+          newRouteName: data.recommended_route || 'NH-306 Kolasib–Aizawl Heavy Freight Bypass',
+          newVehicleCategory: 'HILL_4X4_OFFROAD_2T',
+          newVehicleName: data.vehicle_telemetry?.vehicleModel || 'Tata 407 4x4 High-Clearance Transporter',
+          adminNotes: `Admin executed tactical re-route. Dispatched alternate bypass: ${data.recommended_route}. Avoided compromised corridor: ${compromisedRoute}.`,
+        })
+
+        // 5. Activate the tactical corridor so Citizen Portal tracks the new bypass!
+        adminActivateTacticalCorridor({
+          corridorName: data.recommended_route || 'Alternate Strategic Bypass Corridor',
+          originHub: originHub,
+          destinationTarget: `Crisis Target (${zone.lat.toFixed(3)}, ${zone.lng.toFixed(3)})`,
+          targetCoords: { lat: zone.lat, lng: zone.lng },
+          pathCoordinates: data.path_coordinates || [],
+          vehicleTelemetry: data.vehicle_telemetry || null,
+          cargoType: cargoType,
+          etaMinutes: Math.round((data.estimated_delay_hours || 2.5) * 60),
+          distanceKm: Math.round(data.distance_km || 210),
+          assignedVehicleName: data.vehicle_telemetry?.vehicleModel || 'Hill 4x4 Off-Road Transporter',
+          assignedVehicleCategory: 'HILL_4X4_OFFROAD_2T',
+        })
+      }
+    } catch (err) {
+      console.warn('Real re-route error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleResolveAndRestore = async (incidentId: string) => {
     await resolveIncident(incidentId)
     setRouteChangeDetails(null)
-    await triggerAutoSuggest('', operationalRoutes)
+    setCustomTargetCoords(null)
+    setSuggestion(null)
+    setSelectedRoute('')
+    clearActiveCorridor()
+  }
+
+  const handleIssueResolved = (zoneId?: string) => {
+    if (zoneId) {
+      resolveAndClearCrisisZone({
+        zoneId,
+        officerName: isPolice ? 'Duty Sector Police' : 'State EOC Admin',
+        resolutionNotes: 'Hazard cleared, ground obstacle normalized and cleared from map.',
+      })
+    } else {
+      crisisZones.forEach(z => {
+        resolveAndClearCrisisZone({
+          zoneId: z.id,
+          officerName: isPolice ? 'Duty Sector Police' : 'State EOC Admin',
+          resolutionNotes: 'All hazards cleared from map.',
+        })
+      })
+    }
+    clearActiveCorridor()
+    setCustomTargetCoords(null)
+    setSuggestion(null)
+    setSelectedRoute('')
+    setRouteChangeDetails(null)
+    activeIncidents.forEach(inc => {
+      resolveIncident(inc.id)
+    })
   }
 
   // ── Police / Citizen Field Mobile Telemetry Bridge ──
@@ -1174,6 +1343,8 @@ function MapPageContent() {
             onSelectPoliceStation={(ps) => setSelectedPoliceStation(ps)}
             onSelectRoute={(name) => setSelectedRoute(name)}
             onSelectTargetCoords={handleMapTargetSelected}
+            onAdminSelectCrisisAndRoute={handleAdminSelectCrisisAndRoute}
+            onIssueResolved={handleIssueResolved}
             onSelectOriginCoords={(coords) => {
               setOriginHub(coords.name || 'Guwahati')
             }}
@@ -1199,61 +1370,175 @@ function MapPageContent() {
         {/* ── 3. RIGHT PANEL: MISSION DETAILS & CONTROL (col-span-3) ── */}
         <div className="lg:col-span-3 xl:col-span-3 space-y-3.5 max-h-[660px] xl:max-h-[740px] overflow-y-auto pr-1.5 custom-scrollbar">
 
-          {/* A. Active Mission & Crisis Target Card */}
-          <div className="gov-card p-4 space-y-2.5 bg-white border border-slate-200 rounded-lg shadow-xs">
-            <div className="flex items-center justify-between gap-2">
-              <span className="bg-[#213d77] text-white text-[9.5px] font-mono font-black px-2 py-0.5 rounded tracking-wider flex items-center gap-1">
-                <span>🎯</span> {customTargetCoords ? 'CRISIS PINNED' : t('fastest_route')}
-              </span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                customTargetCoords ? 'bg-red-100 text-red-800 border-red-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
-              }`}>
-                {customTargetCoords ? '🚨 CRISIS ACTIVE' : t('status_open')}
-              </span>
-            </div>
-
-            <div>
-              <h3 className="font-black text-sm text-slate-900 leading-tight">
-                {suggestion?.recommended_route || selectedRoute || 'NH-27 / Strategic Arterial Corridor'}
-              </h3>
-              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mt-1 font-medium">
-                <span>🏛️ Origin: <strong>{originHub}</strong></span>
-                <span>➔</span>
-                <span>🎯 Target: <strong>{customTargetCoords ? `[${customTargetCoords.lat.toFixed(3)}, ${customTargetCoords.lng.toFixed(3)}]` : destinationDepot}</strong></span>
-              </div>
-            </div>
-
-            {/* Calamity Class Badge if marked */}
-            {customTargetCoords && (
-              <div className="bg-rose-50 border border-rose-200 p-2 rounded-lg text-xs space-y-1">
-                <div className="flex items-center justify-between text-rose-900 font-bold">
-                  <span className="flex items-center gap-1">
-                    <span>{STANDARDIZED_DISASTER_CATEGORIES.find(c => c.id === selectedCalamityId)?.icon || '⚠️'}</span>
-                    <span>{STANDARDIZED_DISASTER_CATEGORIES.find(c => c.id === selectedCalamityId)?.shortLabel}</span>
-                  </span>
-                  <span className="text-[10px] bg-rose-200 text-rose-950 px-1.5 py-0.2 rounded font-mono">PRIORITY-1</span>
+          {/* A. Police Ground Hazard & Location Monitor Card (POLICE ONLY) */}
+          {isPolice ? (
+            <div className="gov-card p-4 bg-white border border-slate-200 rounded-lg shadow-xs space-y-3 text-xs">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <div className="flex items-center gap-1.5 text-xs font-black text-[#213d77]">
+                  <span>👮</span>
+                  <span className="uppercase tracking-wide">Police Sector Ground Monitor</span>
                 </div>
-                <p className="text-[10.5px] text-rose-700 leading-tight">{selectedSubType}</p>
+                <span className={`text-[9.5px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                  crisisZones.length > 0
+                    ? 'bg-rose-100 text-rose-800 border-rose-300'
+                    : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                }`}>
+                  {crisisZones.length} {crisisZones.length === 1 ? 'LOCATION' : 'LOCATIONS'}
+                </span>
               </div>
-            )}
 
-            {/* Report Action Buttons */}
-            <div className="flex items-center gap-2 pt-1 border-t border-slate-100 text-xs">
-              <span className="text-[11px] font-bold text-slate-500">Report:</span>
-              <button
-                onClick={() => handleOpenIncidentModal(selectedRoute || suggestion?.recommended_route || 'Active Corridor', 'blocked')}
-                className="flex-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold py-1 px-2 rounded text-[11px] transition-colors cursor-pointer text-center"
-              >
-                {t('mark_blocked')} 🚫
-              </button>
-              <button
-                onClick={() => handleOpenIncidentModal(selectedRoute || suggestion?.recommended_route || 'Active Corridor', 'at_risk')}
-                className="flex-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold py-1 px-2 rounded text-[11px] transition-colors cursor-pointer text-center"
-              >
-                {t('mark_at_risk')} ⚠️
-              </button>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Field patrol command: review declared hazard locations, mark new road blockages, or clear normalized spots.
+              </p>
+
+              {/* Active Crisis Locations List */}
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
+                {crisisZones.length === 0 ? (
+                  <div className="p-3 rounded-lg bg-emerald-50/70 border border-emerald-200 text-center space-y-1">
+                    <span className="text-xl block">✅</span>
+                    <strong className="block text-xs text-[#213d77] font-bold">Sector All Clear</strong>
+                    <p className="text-[11px] text-slate-600">No active hazards or road blockages declared.</p>
+                  </div>
+                ) : (
+                  crisisZones.map(zone => (
+                    <div
+                      key={zone.id}
+                      className="p-3 rounded-lg bg-rose-50/80 border border-rose-200 space-y-2 text-xs"
+                    >
+                      {/* Top Header Badge */}
+                      <div className="flex items-center justify-between gap-1.5">
+                        <span className="text-[9.5px] font-mono font-bold uppercase tracking-wider text-rose-800 bg-rose-100 px-2 py-0.5 rounded border border-rose-200 truncate max-w-[190px]">
+                          🚨 {zone.hazardType || 'CRISIS HAZARD'}
+                        </span>
+                        <span className="text-[9.5px] font-mono text-slate-500 font-semibold">
+                          {(zone.radiusMeters / 1000).toFixed(1)} km
+                        </span>
+                      </div>
+
+                      {/* Location Title & Info */}
+                      <div>
+                        <strong className="text-xs font-bold text-slate-900 block leading-snug break-words">
+                          {zone.title}
+                        </strong>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10.5px] text-slate-600 mt-0.5 font-mono">
+                          <span>📍 [{zone.lat.toFixed(3)}, {zone.lng.toFixed(3)}]</span>
+                          <span>•</span>
+                          <span>👮 {zone.policeStation}</span>
+                        </div>
+                      </div>
+
+                      {/* Directive guidance */}
+                      {zone.evacuationGuidance && (
+                        <div className="text-[10px] text-slate-600 bg-white p-1.5 rounded border border-slate-200 italic leading-tight">
+                          🧭 <strong>Directive:</strong> {zone.evacuationGuidance}
+                        </div>
+                      )}
+
+                      {/* Action Button: Clear Location */}
+                      <div className="pt-0.5">
+                        <button
+                          onClick={() => handleIssueResolved(zone.id)}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-md text-xs flex items-center justify-center gap-1 shadow-2xs cursor-pointer transition-all"
+                        >
+                          <span>✅</span>
+                          <span>Issue Resolved (Clear Location)</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Quick Actions for Police */}
+              {crisisZones.length > 0 && (
+                <div className="pt-1 border-t border-slate-200">
+                  <button
+                    onClick={() => handleIssueResolved()}
+                    className="w-full bg-slate-900 hover:bg-slate-800 text-emerald-300 font-bold py-1.5 px-2 rounded-md text-xs flex items-center justify-center gap-1 shadow-2xs cursor-pointer"
+                  >
+                    <span>🧹</span> Clear All Ground Locations
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
+          ) : (
+            /* Admin Active Mission & Crisis Target Card */
+            <div className="gov-card p-4 space-y-2.5 bg-white border border-slate-200 rounded-lg shadow-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="bg-[#213d77] text-white text-[9.5px] font-mono font-black px-2 py-0.5 rounded tracking-wider flex items-center gap-1">
+                  <span>🎯</span> {customTargetCoords ? 'CRISIS PINNED' : t('fastest_route')}
+                </span>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                  customTargetCoords ? 'bg-red-100 text-red-800 border-red-300' : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                }`}>
+                  {customTargetCoords ? '🚨 CRISIS ACTIVE' : t('status_open')}
+                </span>
+              </div>
+
+              <div>
+                <h3 className="font-black text-sm text-slate-900 leading-tight">
+                  {suggestion?.recommended_route || selectedRoute || 'NH-27 / Strategic Arterial Corridor'}
+                </h3>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 mt-1 font-medium">
+                  <span>🏛️ Origin: <strong>{originHub}</strong></span>
+                  <span>➔</span>
+                  <span>🎯 Target: <strong>{customTargetCoords ? `[${customTargetCoords.lat.toFixed(3)}, ${customTargetCoords.lng.toFixed(3)}]` : destinationDepot}</strong></span>
+                </div>
+                {suggestion?.blockedRoad && (
+                  <div className="mt-1.5 p-1.5 bg-amber-50 border border-amber-300 rounded text-[10.5px] text-amber-900 flex items-center gap-1.5 font-medium">
+                    <span className="text-xs">🔄</span>
+                    <span><strong>Active Bypass:</strong> Avoiding compromised {suggestion.blockedRoad}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Calamity Class Badge if marked */}
+              {customTargetCoords && (
+                <div className="bg-rose-50 border border-rose-200 p-2 rounded-lg text-xs space-y-1">
+                  <div className="flex items-center justify-between text-rose-900 font-bold">
+                    <span className="flex items-center gap-1">
+                      <span>{STANDARDIZED_DISASTER_CATEGORIES.find(c => c.id === selectedCalamityId)?.icon || '⚠️'}</span>
+                      <span>{STANDARDIZED_DISASTER_CATEGORIES.find(c => c.id === selectedCalamityId)?.shortLabel}</span>
+                    </span>
+                    <span className="text-[10px] bg-rose-200 text-rose-950 px-1.5 py-0.2 rounded font-mono">PRIORITY-1</span>
+                  </div>
+                  <p className="text-[10.5px] text-rose-700 leading-tight">{selectedSubType}</p>
+                </div>
+              )}
+
+              {/* Clear Map / Issue Resolved Button - ADMIN ONLY */}
+              {(customTargetCoords || suggestion) && !isCitizen && (
+                <div className="pt-1">
+                  <button
+                    onClick={() => handleIssueResolved()}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-md text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer transition-all"
+                  >
+                    <span>✅</span>
+                    <span>Issue Resolved (Clear Map)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Report Action Buttons - ADMIN & POLICE ONLY */}
+              {!isCitizen && (
+                <div className="flex items-center gap-2 pt-1 border-t border-slate-100 text-xs">
+                  <span className="text-[11px] font-bold text-slate-500">Report:</span>
+                  <button
+                    onClick={() => handleOpenIncidentModal(selectedRoute || suggestion?.recommended_route || 'Active Corridor', 'blocked')}
+                    className="flex-1 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 font-bold py-1 px-2 rounded text-[11px] transition-colors cursor-pointer text-center"
+                  >
+                    {t('mark_blocked')} 🚫
+                  </button>
+                  <button
+                    onClick={() => handleOpenIncidentModal(selectedRoute || suggestion?.recommended_route || 'Active Corridor', 'at_risk')}
+                    className="flex-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold py-1 px-2 rounded text-[11px] transition-colors cursor-pointer text-center"
+                  >
+                    {t('mark_at_risk')} ⚠️
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ⛺ Verified Safe Evacuation Havens & Refuges Nearby */}
           <div className="gov-card p-4 bg-white border border-slate-200 rounded-lg shadow-xs space-y-2.5 text-xs">
@@ -1711,84 +1996,87 @@ function MapPageContent() {
                     </p>
                   )}
 
-                  {/* Quick Action Triggers */}
-                  <div className="pt-1 flex gap-1">
-                    {zone.workflowStatus === 'CRISIS_MARKED' && (
-                      <button
-                        onClick={() => adminAssignRouteToCrisisZone({
-                          zoneId: zone.id,
-                          assignedRouteName: 'NH-37 Tupul Bypass via North Ridge Footpath (km 48)',
-                          assignedVehicleCategory: 'HILL_4X4_OFFROAD_2T',
-                          assignedVehicleName: 'Hill 4x4 Off-Road Bolero Fleet',
-                          adminNotes: 'State EOC Admin designated 4x4 Hill Corridor.',
-                        })}
-                        className="flex-1 bg-[#fb792b] hover:bg-[#e06820] text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer"
-                      >
-                        <span>⚡</span> 1. Admin Give Route
-                      </button>
-                    )}
+                  {/* Quick Action Triggers & Resolution - ADMIN & POLICE ONLY */}
+                  {!isCitizen ? (
+                    <>
+                      <div className="pt-1 flex gap-1">
+                        {zone.workflowStatus === 'CRISIS_MARKED' && (
+                          <button
+                            onClick={() => adminAssignRouteToCrisisZone({
+                              zoneId: zone.id,
+                              assignedRouteName: 'NH-37 Tupul Bypass via North Ridge Footpath (km 48)',
+                              assignedVehicleCategory: 'HILL_4X4_OFFROAD_2T',
+                              assignedVehicleName: 'Hill 4x4 Off-Road Bolero Fleet',
+                              adminNotes: 'State EOC Admin designated 4x4 Hill Corridor.',
+                            })}
+                            className="flex-1 bg-[#fb792b] hover:bg-[#e06820] text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                          >
+                            <span>⚡</span> 1. Admin Give Route
+                          </button>
+                        )}
 
-                    {(zone.workflowStatus === 'ROUTE_ASSIGNED' || zone.workflowStatus === 'ADMIN_REROUTED') && (
-                      <>
-                        <button
-                          onClick={() => policeVerifyRoute({
-                            zoneId: zone.id,
-                            officerName: 'OC Inspector R. Barman',
-                            notes: 'Ground passable. Clear for convoy transit.',
-                          })}
-                          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer"
-                        >
-                          <span>✅</span> 2A. Police Verify
-                        </button>
-                        <button
-                          onClick={() => policeRequestReroute({
-                            zoneId: zone.id,
-                            officerName: 'OC Inspector R. Barman',
-                            obstacleDescription: 'Culvert collapsed at km 94. Request Airbridge.',
-                          })}
-                          className="flex-1 bg-rose-700 hover:bg-rose-800 text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer"
-                        >
-                          <span>🛑</span> 2B. Re-Route
-                        </button>
-                      </>
-                    )}
+                        {(zone.workflowStatus === 'ROUTE_ASSIGNED' || zone.workflowStatus === 'ADMIN_REROUTED') && (
+                          <>
+                            <button
+                              onClick={() => policeVerifyRoute({
+                                zoneId: zone.id,
+                                officerName: 'OC Inspector R. Barman',
+                                notes: 'Ground passable. Clear for convoy transit.',
+                              })}
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                            >
+                              <span>✅</span> 2A. Police Verify
+                            </button>
+                            <button
+                              onClick={() => policeRequestReroute({
+                                zoneId: zone.id,
+                                officerName: 'OC Inspector R. Barman',
+                                obstacleDescription: 'Culvert collapsed at km 94. Request Airbridge.',
+                              })}
+                              className="flex-1 bg-rose-700 hover:bg-rose-800 text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer"
+                            >
+                              <span>🛑</span> 2B. Re-Route
+                            </button>
+                          </>
+                        )}
 
-                    {zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' && (
-                      <button
-                        onClick={() => adminRerouteCrisisZone({
-                          zoneId: zone.id,
-                          newRouteName: 'NH-2 Mao Sector / IAF MI-17 Rotary Airbridge',
-                          newVehicleCategory: 'IAF_MI17_HELI_AIRLIFT',
-                          newVehicleName: 'IAF Mi-17 V5 Heavy Airlift',
-                          adminNotes: 'State EOC Admin re-routed to Mi-17 Airbridge.',
-                        })}
-                        className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer animate-pulse"
-                      >
-                        <span>🔄</span> 3. Admin: Re-Route Now
-                      </button>
-                    )}
+                        {zone.workflowStatus === 'POLICE_REROUTE_REQUESTED' && (
+                          <button
+                            onClick={() => handleExecuteRealReroute(zone)}
+                            className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-xs cursor-pointer animate-pulse"
+                          >
+                            <span>🔄</span> 3. Admin: Re-Route Now (Calculate Real Bypass)
+                          </button>
+                        )}
 
-                    {zone.workflowStatus === 'POLICE_VERIFIED' && (
-                      <div className="w-full text-center py-1 bg-emerald-100 border border-emerald-300 rounded text-emerald-900 font-bold text-xs">
-                        ✅ Convoys Authorized to Proceed
+                        {zone.workflowStatus === 'POLICE_VERIFIED' && (
+                          <div className="w-full text-center py-1 bg-emerald-100 border border-emerald-300 rounded text-emerald-900 font-bold text-xs">
+                            ✅ Convoys Authorized to Proceed
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {/* 🎉 Mark Issue Resolved & Clear Crisis from Map */}
-                  <div className="pt-1">
-                    <button
-                      onClick={() => resolveAndClearCrisisZone({
-                        zoneId: zone.id,
-                        officerName: 'Field Police Unit',
-                        resolutionNotes: 'Hazard cleared and corridor reopened.',
-                      })}
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-2xs cursor-pointer transition-all"
-                    >
-                      <span>🎉</span>
-                      <span>✅ Issue Resolved (Clear from Map)</span>
-                    </button>
-                  </div>
+                      {/* 🎉 Mark Issue Resolved & Clear Crisis from Map */}
+                      <div className="pt-1">
+                        <button
+                          onClick={() => resolveAndClearCrisisZone({
+                            zoneId: zone.id,
+                            officerName: 'Field Police Unit',
+                            resolutionNotes: 'Hazard cleared and corridor reopened.',
+                          })}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2 rounded-lg text-xs flex items-center justify-center gap-1 shadow-2xs cursor-pointer transition-all"
+                        >
+                          <span>🎉</span>
+                          <span>✅ Issue Resolved (Clear from Map)</span>
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="pt-1 text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded p-1.5 font-medium flex items-center gap-1.5">
+                      <span>⚠️</span>
+                      <span>Active Hazard Perimeter: Civilians strictly avoid transit through this danger zone.</span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-rose-200/60 font-mono">
                     <span>{zone.policeStation}</span>
@@ -1836,46 +2124,48 @@ function MapPageContent() {
             </div>
           </div>
 
-          {/* D. Quick Actions (2x2 Big Buttons Grid + Statutory Broadcast) */}
-          <div className="space-y-2">
-            <button
-              onClick={handleTriggerCorridorBroadcast}
-              className="w-full bg-[#16a34a] hover:bg-[#15803d] text-white font-black text-xs py-3 px-3 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer border border-emerald-700 ring-2 ring-emerald-500/20"
-            >
-              <span className="text-sm">📢</span>
-              <span>BROADCAST CORRIDOR CLEARANCE (POLICE & VDP)</span>
-            </button>
+          {/* D. Quick Actions (2x2 Big Buttons Grid + Statutory Broadcast) - ADMIN & POLICE ONLY */}
+          {!isCitizen && (
+            <div className="space-y-2">
+              <button
+                onClick={handleTriggerCorridorBroadcast}
+                className="w-full bg-[#16a34a] hover:bg-[#15803d] text-white font-black text-xs py-3 px-3 rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer border border-emerald-700 ring-2 ring-emerald-500/20"
+              >
+                <span className="text-sm">📢</span>
+                <span>BROADCAST CORRIDOR CLEARANCE (POLICE & VDP)</span>
+              </button>
 
-            <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider block pt-1">
-              {t('proactive_action_plan')}
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleOpenIncidentModal(selectedRoute || 'Active Sector', 'blocked')}
-                className="bg-[#fb792b] hover:bg-[#e06820] text-white font-black text-xs py-3 px-2 rounded shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span>🛑</span> {t('btn_confirm_incident')}
-              </button>
-              <Link
-                href="/missions"
-                className="bg-[#fb792b] hover:bg-[#e06820] text-white font-black text-xs py-3 px-2 rounded shadow-xs flex items-center justify-center gap-1.5 transition-colors text-center"
-              >
-                <span>✅</span> {t('btn_authorize_mission')}
-              </Link>
-              <button
-                onClick={() => handleOpenIncidentModal(selectedRoute || 'Active Sector', 'at_risk')}
-                className="bg-[#213d77] hover:bg-[#1b3162] text-white font-black text-xs py-3 px-2 rounded shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span>📝</span> {t('btn_report_incident')}
-              </button>
-              <button
-                onClick={handleSuggest}
-                className="bg-[#213d77] hover:bg-[#1b3162] text-white font-black text-xs py-3 px-2 rounded shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <span>🔀</span> {t('btn_find_alternate_route')}
-              </button>
+              <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider block pt-1">
+                {t('proactive_action_plan')}
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => handleOpenIncidentModal(selectedRoute || 'Active Sector', 'blocked')}
+                  className="bg-[#fb792b] hover:bg-[#e06820] text-white font-black text-xs py-3 px-2 rounded shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>🛑</span> {t('btn_confirm_incident')}
+                </button>
+                <Link
+                  href="/missions"
+                  className="bg-[#fb792b] hover:bg-[#e06820] text-white font-black text-xs py-3 px-2 rounded shadow-xs flex items-center justify-center gap-1.5 transition-colors text-center"
+                >
+                  <span>✅</span> {t('btn_authorize_mission')}
+                </Link>
+                <button
+                  onClick={() => handleOpenIncidentModal(selectedRoute || 'Active Sector', 'at_risk')}
+                  className="bg-[#213d77] hover:bg-[#1b3162] text-white font-black text-xs py-3 px-2 rounded shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>📝</span> {t('btn_report_incident')}
+                </button>
+                <button
+                  onClick={handleSuggest}
+                  className="bg-[#213d77] hover:bg-[#1b3162] text-white font-black text-xs py-3 px-2 rounded shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <span>🔀</span> {t('btn_find_alternate_route')}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
 
