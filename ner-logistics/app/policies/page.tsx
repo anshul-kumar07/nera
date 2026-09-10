@@ -139,19 +139,19 @@ function PoliciesContent() {
       )}
 
       {/* ── Official Government Header Strip (JanSetu Inspired) ── */}
-      <header className="bg-white dark:bg-slate-900/60 backdrop-blur-md border-2 border-slate-200 dark:border-slate-800 py-5 sm:py-6 px-5 sm:px-8 rounded-2xl shadow-sm space-y-4 relative overflow-hidden">
+      <header className="gov-card py-5 sm:py-6 px-5 sm:px-8 rounded-2xl shadow-sm space-y-4 relative overflow-hidden">
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#fb792b] via-white to-[#138808]" />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 flex items-center justify-center text-xl shrink-0 shadow-xs">
+            <div className="w-11 h-11 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-xl shrink-0 shadow-xs">
               🇮🇳
             </div>
             <div>
-              <span className="text-[10.5px] font-mono font-black uppercase text-blue-900 dark:text-blue-400 tracking-wider block">
+              <span className="text-[10.5px] font-mono font-black uppercase text-blue-900 tracking-wider block">
                 Ministry of Development of North Eastern Region (MDoNER) • Government of India
               </span>
-              <h1 className="text-xl sm:text-2xl font-black text-[#213d77] dark:text-white tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-black text-[#213d77] tracking-tight">
                 {currentPolicy.title}
               </h1>
             </div>
@@ -162,45 +162,45 @@ function PoliciesContent() {
             <button
               onClick={handleCopyCitation}
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-300 rounded-lg shadow-xs hover:bg-slate-100 transition cursor-pointer"
             >
-              <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+              <Copy className="w-3.5 h-3.5 text-slate-500" />
               <span>Copy Citation</span>
             </button>
             <button
               onClick={handlePrint}
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xs hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-300 rounded-lg shadow-xs hover:bg-slate-100 transition cursor-pointer"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+              <Printer className="w-3.5 h-3.5 text-slate-500" />
               <span>Print</span>
             </button>
             <button
               onClick={handleShare}
               type="button"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#213d77] dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 rounded-lg shadow-xs hover:bg-blue-100 dark:hover:bg-blue-900/60 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-[#213d77] bg-blue-50 border border-blue-200 rounded-lg shadow-xs hover:bg-blue-100 transition cursor-pointer"
             >
-              <Share2 className="w-3.5 h-3.5 text-[#213d77] dark:text-blue-400" />
+              <Share2 className="w-3.5 h-3.5 text-[#213d77]" />
               <span>Share</span>
             </button>
           </div>
         </div>
 
-        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-5xl">
+        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-5xl">
           {currentPolicy.metaDescription}
         </p>
 
         {/* Metadata Badges Strip */}
-        <div className="pt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 dark:text-slate-400 font-medium">
+        <div className="pt-2 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600 font-medium">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-mono text-[11px]">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" /> Last Updated: <strong className="text-slate-900 dark:text-white">{currentPolicy.lastUpdated}</strong>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[11px]">
+              <Calendar className="w-3.5 h-3.5 text-slate-400" /> Last Updated: <strong className="text-slate-900">{currentPolicy.lastUpdated}</strong>
             </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/80 text-emerald-800 dark:text-emerald-300 font-bold text-[11px]">
-              <CheckCircle className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> {currentPolicy.badge}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold text-[11px]">
+              <CheckCircle className="w-3 h-3 text-emerald-600" /> {currentPolicy.badge}
             </span>
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-300 font-mono text-[11px] font-bold">
-              <Landmark className="w-3 h-3 text-blue-700 dark:text-blue-400" /> Ref: {currentPolicy.gazetteRef}
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-900 font-mono text-[11px] font-bold">
+              <Landmark className="w-3 h-3 text-blue-700" /> Ref: {currentPolicy.gazetteRef}
             </span>
           </div>
 
@@ -212,12 +212,12 @@ function PoliciesContent() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search clauses in document..."
-              className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-300 dark:border-slate-700 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:border-[#213d77] dark:focus:border-blue-400 font-sans"
+              className="w-full bg-slate-50 border border-slate-300 rounded-lg pl-8 pr-3 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#213d77] font-sans"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
               >
                 ✕
               </button>
@@ -227,11 +227,11 @@ function PoliciesContent() {
       </header>
 
       {/* ── Official 22 Scheduled Language Gazette Notice Banner ── */}
-      <div className="rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-300/80 dark:border-amber-700/50 p-3.5 text-amber-950 dark:text-amber-200 text-xs flex items-start gap-3 shadow-xs">
-        <Globe2 className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
+      <div className="gov-card rounded-xl bg-amber-50/70 border border-amber-300 p-3.5 text-xs flex items-start gap-3 shadow-xs">
+        <Globe2 className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
         <div className="space-y-0.5">
-          <p className="font-bold text-amber-950 dark:text-amber-300">Official 22 Scheduled Language Gazette Notice (Digital India Bhashini)</p>
-          <p className="text-amber-800 dark:text-amber-300/90 text-[11.5px] leading-relaxed">
+          <p className="font-bold text-amber-900">Official 22 Scheduled Language Gazette Notice (Digital India Bhashini)</p>
+          <p className="text-slate-700 text-[11.5px] leading-relaxed">
             In accordance with Digital India Bhashini guidelines and Article 343 / Eighth Schedule provisions, this statutory charter is rendered dynamically across official North Eastern and regional dialects. The English and Hindi texts serve as primary authentic references in legal and disaster management proceedings.
           </p>
         </div>
@@ -244,13 +244,13 @@ function PoliciesContent() {
         <aside className="lg:col-span-4 sticky top-14 space-y-4">
           
           {/* Statutory Policy Directory */}
-          <div className="bg-white dark:bg-slate-900/60 backdrop-blur-md rounded-xl border-2 border-slate-200 dark:border-slate-800 shadow-xs overflow-hidden">
-            <div className="p-3.5 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-              <h2 className="text-xs font-black uppercase tracking-wider text-[#213d77] dark:text-blue-400 flex items-center gap-2">
+          <div className="gov-card rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-xs font-black uppercase tracking-wider text-[#213d77] flex items-center gap-2">
                 <FileText className="w-4 h-4 text-[#fb792b]" />
                 <span>Statutory Policy Directory</span>
               </h2>
-              <span className="text-[10px] font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-mono font-bold text-slate-700 bg-slate-200 px-2 py-0.5 rounded-full">
                 7 Documents
               </span>
             </div>
@@ -264,12 +264,12 @@ function PoliciesContent() {
                     onClick={() => handleSelectPolicy(item.id)}
                     className={`w-full group flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-medium transition cursor-pointer text-left ${
                       isSelected
-                        ? 'bg-blue-50 dark:bg-blue-950/60 text-[#213d77] dark:text-blue-300 border-2 border-blue-400 font-black shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white border border-transparent'
+                        ? 'bg-blue-50 text-[#213d77] border-2 border-blue-400 font-black shadow-xs'
+                        : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-2.5 truncate">
-                      <span className={isSelected ? 'text-[#213d77] dark:text-blue-400' : 'text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300'}>
+                      <span className={isSelected ? 'text-[#213d77]' : 'text-slate-400 group-hover:text-slate-600'}>
                         {item.id === 'website-policies' && <Globe2 className="w-4 h-4" />}
                         {item.id === 'terms-of-use' && <Scale className="w-4 h-4" />}
                         {item.id === 'privacy-policy' && <Lock className="w-4 h-4" />}
@@ -280,7 +280,7 @@ function PoliciesContent() {
                       </span>
                       <span className="truncate">{item.shortTitle}</span>
                     </div>
-                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isSelected ? 'text-[#fb792b] translate-x-0.5' : 'text-slate-300 dark:text-slate-500 group-hover:text-slate-500 dark:group-hover:text-slate-300'}`} />
+                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isSelected ? 'text-[#fb792b] translate-x-0.5' : 'text-slate-300 group-hover:text-slate-500'}`} />
                   </button>
                 )
               })}
@@ -288,8 +288,8 @@ function PoliciesContent() {
           </div>
 
           {/* Quick Jump Table of Contents */}
-          <div className="bg-white dark:bg-slate-900/60 backdrop-blur-md rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs p-3.5 space-y-2">
-            <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 dark:border-slate-800 pb-2">
+          <div className="gov-card rounded-xl border border-slate-200 shadow-xs p-3.5 space-y-2">
+            <h3 className="text-xs font-bold text-[#213d77] uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
               <Compass className="w-3.5 h-3.5 text-[#fb792b]" />
               <span>Table of Contents ({currentPolicy.sections.length} Clauses)</span>
             </h3>
@@ -298,7 +298,7 @@ function PoliciesContent() {
                 <a
                   key={sIdx}
                   href={`#clause-${sIdx + 1}`}
-                  className="block text-slate-600 dark:text-slate-400 hover:text-[#213d77] dark:hover:text-blue-300 hover:bg-slate-50 dark:hover:bg-slate-800/40 px-2 py-1 rounded truncate transition-colors text-[11.5px]"
+                  className="block text-slate-600 hover:text-[#213d77] hover:bg-slate-50 px-2 py-1 rounded truncate transition-colors text-[11.5px]"
                 >
                   {sec.heading}
                 </a>
@@ -307,27 +307,27 @@ function PoliciesContent() {
           </div>
 
           {/* Official DPO & Grievance Helpline Card */}
-          <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 dark:from-transparent dark:to-transparent dark:bg-slate-900/60 dark:backdrop-blur-md rounded-xl border-2 border-slate-200 dark:border-slate-800 p-4 space-y-2.5 text-xs text-slate-700 dark:text-slate-300 shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
-              <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <div className="gov-card rounded-xl border border-slate-200 p-4 space-y-2.5 text-xs text-slate-700 shadow-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+              <h3 className="font-bold text-slate-900 flex items-center gap-1.5">
+                <Shield className="w-4 h-4 text-emerald-600" />
                 <span>CPIO & DPO Helpline</span>
               </h3>
-              <span className="text-[10px] bg-emerald-100 dark:bg-emerald-950/80 text-emerald-900 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80 font-mono font-bold px-1.5 py-0.5 rounded">
+              <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-200 font-mono font-bold px-1.5 py-0.5 rounded">
                 STATUTORY
               </span>
             </div>
-            <p className="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+            <p className="text-[11px] leading-relaxed text-slate-600">
               Questions regarding disaster logistics routing, DPDP data protection, or RTI disclosures?
             </p>
             <div className="space-y-1.5 text-[11.5px]">
-              <div className="flex items-center gap-2 text-blue-900 dark:text-blue-400">
-                <Mail className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+              <div className="flex items-center gap-2 text-blue-900">
+                <Mail className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                 <a href="mailto:cpio-nera@mdoner.gov.in" className="font-mono font-bold hover:underline">
                   cpio-nera@mdoner.gov.in
                 </a>
               </div>
-              <div className="flex items-center gap-2 text-slate-800 dark:text-slate-200">
+              <div className="flex items-center gap-2 text-slate-800">
                 <Phone className="w-3.5 h-3.5 text-[#fb792b] shrink-0" />
                 <span>Toll-Free Control Room: <strong>112 / 1070</strong></span>
               </div>
@@ -336,32 +336,32 @@ function PoliciesContent() {
         </aside>
 
         {/* Right 8 Cols: Structured Legal Policy Article */}
-        <main className="lg:col-span-8 bg-white dark:bg-slate-900/60 backdrop-blur-md rounded-xl border-2 border-slate-200 dark:border-slate-800 p-5 sm:p-8 shadow-xs space-y-6">
-          <article className="space-y-6 text-slate-700 dark:text-slate-300 leading-relaxed font-sans">
+        <main className="lg:col-span-8 gov-card rounded-xl border border-slate-200 p-5 sm:p-8 shadow-xs space-y-6">
+          <article className="space-y-6 text-slate-700 leading-relaxed font-sans">
             
             {/* Header Title inside Article */}
-            <div className="border-b-2 border-slate-100 dark:border-slate-800 pb-4 space-y-1">
+            <div className="border-b-2 border-slate-100 pb-4 space-y-1">
               <div className="flex items-center justify-between gap-4">
-                <span className="text-[11px] font-black text-blue-800 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                <span className="text-[11px] font-black text-[#213d77] uppercase tracking-wider flex items-center gap-1.5">
                   <ShieldCheck className="w-4 h-4 text-[#fb792b]" />
                   <span>OFFICIAL STATUTORY DOCUMENT SERIES</span>
                 </span>
-                <span className="text-[11px] font-mono font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                <span className="text-[11px] font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                   Ref: {currentPolicy.gazetteRef}
                 </span>
               </div>
-              <h2 className="text-xl sm:text-2xl font-black text-[#213d77] dark:text-white tracking-tight pt-1">
+              <h2 className="text-xl sm:text-2xl font-black text-[#213d77] tracking-tight pt-1">
                 {currentPolicy.title}
               </h2>
             </div>
 
             {/* If search query active and no results */}
             {filteredSections.length === 0 && (
-              <div className="p-8 text-center bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 font-mono text-xs space-y-2">
+              <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200 text-slate-500 font-mono text-xs space-y-2">
                 <p>🔍 No clauses matching "{searchQuery}" in this policy.</p>
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="text-blue-700 dark:text-blue-400 font-bold underline cursor-pointer"
+                  className="text-[#213d77] font-bold underline cursor-pointer"
                 >
                   Clear search filter
                 </button>
@@ -372,10 +372,10 @@ function PoliciesContent() {
             <div className="space-y-6">
               {filteredSections.map((sec, idx) => (
                 <section key={idx} id={`clause-${idx + 1}`} className="space-y-3 pt-2 scroll-mt-20">
-                  <h3 className="text-sm sm:text-base font-black text-[#213d77] dark:text-blue-400 flex items-center gap-2 border-l-4 border-[#213d77] dark:border-blue-500 pl-3 py-1 bg-slate-50 dark:bg-slate-800/40 rounded-r-lg">
+                  <h3 className="text-sm sm:text-base font-black text-[#213d77] flex items-center gap-2 border-l-4 border-[#213d77] pl-3 py-1.5 bg-slate-50 rounded-r-lg">
                     <span>{sec.heading}</span>
                   </h3>
-                  <div className="space-y-2.5 text-xs sm:text-sm text-slate-700 dark:text-slate-300 pl-3 leading-relaxed">
+                  <div className="space-y-2.5 text-xs sm:text-sm text-slate-700 pl-3 leading-relaxed">
                     {sec.content.map((p, pIdx) => {
                       if (p.startsWith('•')) {
                         const parts = p.replace(/^•\s*/, '').split(':')
@@ -383,16 +383,16 @@ function PoliciesContent() {
                         const rest = parts.slice(1).join(':')
 
                         return (
-                          <div key={pIdx} className="flex items-start gap-2.5 ml-1 py-1 px-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-700/60">
+                          <div key={pIdx} className="flex items-start gap-2.5 ml-1 py-1.5 px-3 rounded-lg bg-slate-50 border border-slate-200">
                             <span className="w-2 h-2 rounded-full bg-[#fb792b] mt-1.5 shrink-0" />
-                            <span className="leading-relaxed text-slate-800 dark:text-slate-200">
-                              <strong className="text-[#213d77] dark:text-blue-300 font-bold">{title}:</strong>{rest}
+                            <span className="leading-relaxed text-slate-800">
+                              <strong className="text-[#213d77] font-bold">{title}:</strong>{rest}
                             </span>
                           </div>
                         )
                       }
                       return (
-                        <p key={pIdx} className="leading-relaxed text-slate-700 dark:text-slate-300">
+                        <p key={pIdx} className="leading-relaxed text-slate-700">
                           {p}
                         </p>
                       )
