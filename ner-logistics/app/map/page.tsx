@@ -164,6 +164,8 @@ function MapPageContent() {
     adminRerouteCrisisZone,
     resolveAndClearCrisisZone,
     clearActiveCorridor,
+    clearSafeZones,
+    removeReliefBeacon,
   } = useDisasterComms()
   const {
     activeIncidents,
@@ -1547,9 +1549,20 @@ function MapPageContent() {
                 <span>⛺</span>
                 <span suppressHydrationWarning>Safe Evacuation Havens ({beacons.length})</span>
               </div>
-              <span className="text-[9.5px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded font-mono">
-                REFUGE POINTS
-              </span>
+              <div className="flex items-center gap-1.5">
+                {beacons.length > 0 && (
+                  <button
+                    onClick={() => clearSafeZones()}
+                    className="text-[10px] bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-1.5 py-0.5 rounded border border-rose-300 transition-colors cursor-pointer"
+                    title="Clear all safe evacuation haven zones from map"
+                  >
+                    Clear All
+                  </button>
+                )}
+                <span className="text-[9.5px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded font-mono">
+                  REFUGE POINTS
+                </span>
+              </div>
             </div>
 
             <p className="text-[11px] text-slate-600 leading-relaxed">
@@ -1561,9 +1574,18 @@ function MapPageContent() {
                 <div key={beacon.id} className="p-2.5 rounded-lg bg-emerald-50/70 border border-emerald-200 space-y-1.5">
                   <div className="flex items-center justify-between font-bold text-emerald-950 text-[11.5px]">
                     <span className="truncate">{beacon.name}</span>
-                    <span className="font-mono text-[10px] text-emerald-700 bg-white px-1.5 py-0.5 rounded border border-emerald-300 shrink-0">
-                      {beacon.evacueeCount} Safe
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="font-mono text-[10px] text-emerald-700 bg-white px-1.5 py-0.5 rounded border border-emerald-300">
+                        {beacon.evacueeCount} Safe
+                      </span>
+                      <button
+                        onClick={() => removeReliefBeacon(beacon.id)}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded p-0.5 text-xs font-bold transition-colors cursor-pointer"
+                        title="Remove this safe haven from map"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                   <div className="bg-white p-2 rounded border border-emerald-100 text-emerald-900 space-y-0.5 text-[10.5px]">
                     <p className="font-bold text-[9.5px] text-emerald-800 uppercase flex items-center gap-1">
@@ -1583,13 +1605,13 @@ function MapPageContent() {
           </div>
 
           {/* B. Terrain, Helicopter Viability & Vehicle Suitability Card */}
-          <div className="gov-card p-4 space-y-3 bg-white border border-slate-200 rounded-lg shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <div className="flex items-center gap-1.5 text-xs font-black text-[#213d77]">
-                <Truck className="w-4 h-4 text-[#fb792b]" />
+          <div className="gov-card p-3.5 bg-white border border-slate-200 rounded-lg shadow-xs space-y-2 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+              <span className="font-extrabold text-[#213d77] text-[11px] flex items-center gap-1">
+                <Truck className="w-3.5 h-3.5 text-[#fb792b]" />
                 <span>Vehicle & Aviation Suitability</span>
-              </div>
-              <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold border ${
+              </span>
+              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border font-mono ${
                 vehicleSuitability?.heliWeatherCheck.weatherAlertLevel === 'CLEAR_TO_FLY'
                   ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                   : vehicleSuitability?.heliWeatherCheck.weatherAlertLevel === 'WEATHER_GROUNDED'
@@ -1603,13 +1625,13 @@ function MapPageContent() {
 
             {/* Inter-State Strategic Airlift Leg (if origin is outside NER) */}
             {vehicleSuitability?.isOutsideNEROrigin && vehicleSuitability.strategicInterStateLeg && (
-              <div className="p-2.5 bg-blue-50/80 border border-blue-200 rounded-lg text-xs space-y-1">
+              <div className="p-2 bg-blue-50/70 border border-blue-200 rounded text-xs space-y-1">
                 <div className="flex items-center justify-between font-bold text-[#213d77] text-[11px]">
                   <span className="flex items-center gap-1">
                     <span>✈️</span>
                     <span>Inter-State Strategic Logistics Leg</span>
                   </span>
-                  <span className="text-[9.5px] bg-blue-200 text-[#213d77] px-1.5 py-0.2 rounded font-mono">IAF AIRLIFT</span>
+                  <span className="text-[9px] bg-blue-100 text-[#213d77] font-bold px-1.5 py-0.2 rounded font-mono">IAF AIRLIFT</span>
                 </div>
                 <p className="text-[10.5px] text-slate-700 leading-tight">
                   Dispatched via <strong>IAF C-130J Super Hercules</strong> from <strong>{vehicleSuitability.strategicInterStateLeg.originCity}</strong> ➔ <strong>{vehicleSuitability.strategicInterStateLeg.gatewayHubCity}</strong> (~{vehicleSuitability.strategicInterStateLeg.transitDurationHours}h flight) before regional road/heli transfer.
@@ -1618,7 +1640,7 @@ function MapPageContent() {
             )}
 
             {/* Helicopter Weather & VFR Safety Diagnostic */}
-            <div className={`p-2.5 rounded-lg border text-xs space-y-1 ${
+            <div className={`p-2.5 rounded border text-xs space-y-1 ${
               vehicleSuitability?.heliWeatherCheck.weatherAlertLevel === 'CLEAR_TO_FLY'
                 ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
                 : vehicleSuitability?.heliWeatherCheck.weatherAlertLevel === 'WEATHER_GROUNDED'
@@ -1626,15 +1648,15 @@ function MapPageContent() {
                 : 'bg-amber-50/70 border-amber-200 text-amber-900'
             }`}>
               <div className="flex items-center justify-between font-bold text-[11px]">
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1 text-amber-900 font-bold">
                   <span>🚁</span>
                   <span>Rotary Heli-Lift Diagnostic</span>
                 </span>
-                <span className="text-[9.5px] font-mono uppercase">
+                <span className="text-[9px] font-mono uppercase text-amber-800 font-bold bg-amber-100 px-1.5 py-0.2 rounded border border-amber-200">
                   Base: {vehicleSuitability?.heliWeatherCheck.forwardHelipadName?.split(' ')[0] || 'Airbase'}
                 </span>
               </div>
-              <p className="text-[10.5px] leading-tight">
+              <p className="text-[10.5px] leading-tight text-slate-700">
                 {vehicleSuitability?.heliWeatherCheck.isHeliViable
                   ? `Clear VFR mountain flight conditions. Direct rotary airbridge takes ~${vehicleSuitability.heliWeatherCheck.airFlightTimeMins} mins (${vehicleSuitability.heliWeatherCheck.airDistanceKm} km air distance) directly to forward LZ.`
                   : vehicleSuitability?.heliWeatherCheck.groundingReason}
@@ -1642,10 +1664,10 @@ function MapPageContent() {
             </div>
 
             {/* Vehicle Match & Speed Grid */}
-            <div className="bg-slate-50 p-2.5 rounded border border-slate-200 space-y-2 text-xs">
+            <div className="bg-slate-50 p-2.5 rounded border border-slate-200 space-y-1.5 text-xs">
               <div>
                 <span className="text-[9.5px] text-slate-500 uppercase font-bold block">Assigned Transport Class</span>
-                <strong className="text-slate-900 font-black text-xs block">
+                <strong className="text-slate-900 font-bold text-xs block">
                   {customTargetCoords && vehicleSuitability
                     ? VEHICLE_CONSTRAINTS[vehicleSuitability.primaryRecommendedVehicle]?.displayName
                     : 'Medium Relief Carrier (8T) / Heavy Multi-Axle Convoy'}
@@ -1657,7 +1679,7 @@ function MapPageContent() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200 text-[11px]">
+              <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-200 text-[10.5px]">
                 <div>
                   <span className="text-slate-500 block text-[9.5px]">Motorable Road:</span>
                   <strong className="text-[#213d77]">
@@ -1666,7 +1688,7 @@ function MapPageContent() {
                 </div>
                 <div>
                   <span className="text-slate-500 block text-[9.5px]">Last-Mile Non-Road:</span>
-                  <strong className={customTargetCoords && vehicleSuitability && vehicleSuitability.lastMileDistanceKm > 0 ? 'text-orange-700' : 'text-emerald-700'}>
+                  <strong className={customTargetCoords && vehicleSuitability && vehicleSuitability.lastMileDistanceKm > 0 ? 'text-orange-700 font-bold' : 'text-emerald-700 font-bold'}>
                     {customTargetCoords && vehicleSuitability && vehicleSuitability.lastMileDistanceKm > 0
                       ? `${vehicleSuitability.lastMileDistanceKm} km (${vehicleSuitability.lastMileMode.replace(/_/g, ' ')})`
                       : '0 km (Direct Road Access)'}
@@ -1677,32 +1699,32 @@ function MapPageContent() {
 
             {/* Vehicle Access Point (VAP) Roadhead Staging Protocol — only if last-mile exists */}
             {effectiveLastMileAccessibility && effectiveLastMileAccessibility.lastMileDistanceKm > 0 ? (
-              <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded-lg space-y-1 text-xs">
+              <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded space-y-1 text-xs">
                 <div className="flex items-center justify-between font-bold text-amber-900 text-[11px]">
                   <span className="flex items-center gap-1">
                     <span>📍</span>
                     <span>Vehicle Access Point (VAP)</span>
                   </span>
-                  <span className="text-[9.5px] bg-amber-200 px-1.5 py-0.2 rounded font-mono">ROADHEAD</span>
+                  <span className="text-[9px] bg-amber-100 text-amber-900 px-1.5 py-0.2 rounded font-mono font-bold border border-amber-200">ROADHEAD</span>
                 </div>
-                <p className="text-[10.5px] text-amber-800">
+                <p className="text-[10.5px] text-slate-700">
                   {vehicleSuitability?.vehicleAccessPointName || 'Terminal Roadhead Staging Point'}
                 </p>
-                <div className="text-[10px] text-amber-700 pt-1 border-t border-amber-200/60 flex justify-between">
-                  <span>Handover: <strong>{vehicleSuitability?.transshipmentProtocol.handoverOfficerRank || 'SDRF Commander'}</strong></span>
-                  <span>Porters: <strong>{vehicleSuitability?.transshipmentProtocol.personnelRequired || 6} Teams</strong></span>
+                <div className="text-[10px] text-slate-600 pt-1 border-t border-amber-200 flex justify-between">
+                  <span>Handover: <strong className="text-slate-900">{vehicleSuitability?.transshipmentProtocol.handoverOfficerRank || 'SDRF Commander'}</strong></span>
+                  <span>Porters: <strong className="text-slate-900">{vehicleSuitability?.transshipmentProtocol.personnelRequired || 6} Teams</strong></span>
                 </div>
               </div>
             ) : (
-              <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded-lg space-y-1 text-xs">
-                <div className="flex items-center justify-between font-bold text-emerald-900 text-[11px]">
-                  <span className="flex items-center gap-1">
+              <div className="p-2.5 bg-emerald-50/70 border border-emerald-200 rounded space-y-1 text-xs">
+                <div className="flex items-center justify-between font-bold text-emerald-950 text-[11px]">
+                  <span className="flex items-center gap-1 text-emerald-900 font-bold">
                     <span>✅</span>
                     <span>Delivery Access Profile</span>
                   </span>
-                  <span className="text-[9.5px] bg-emerald-200 text-emerald-900 px-1.5 py-0.2 rounded font-mono">DIRECT DEPOT</span>
+                  <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-mono font-bold border border-emerald-200">DIRECT DEPOT</span>
                 </div>
-                <p className="text-[10.5px] text-emerald-800">
+                <p className="text-[10.5px] text-slate-700 leading-tight">
                   Direct motorable access to <strong>{destinationDepot} Regional Supply Depot</strong>. No trans-shipment or porter relay needed.
                 </p>
               </div>
@@ -2093,9 +2115,20 @@ function MapPageContent() {
               <span className="font-extrabold text-emerald-950 text-xs flex items-center gap-1.5">
                 <span>⛺</span> Safe Evacuation Havens ({beacons.length})
               </span>
-              <span className="text-xs bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded font-mono">
-                REFUGE POINTS
-              </span>
+              <div className="flex items-center gap-1.5">
+                {beacons.length > 0 && (
+                  <button
+                    onClick={() => clearSafeZones()}
+                    className="text-[10px] bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-1.5 py-0.5 rounded border border-rose-300 transition-colors cursor-pointer"
+                    title="Clear all safe evacuation haven zones from map"
+                  >
+                    Clear All
+                  </button>
+                )}
+                <span className="text-xs bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded font-mono">
+                  REFUGE POINTS
+                </span>
+              </div>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
@@ -2107,9 +2140,18 @@ function MapPageContent() {
                 <div key={beacon.id} className="p-2.5 rounded-lg bg-emerald-50/90 border border-emerald-300 space-y-1">
                   <div className="flex items-center justify-between font-bold text-emerald-950 text-xs">
                     <span className="truncate">{beacon.name}</span>
-                    <span className="font-mono text-xs text-emerald-900 bg-white px-2 py-0.5 rounded border border-emerald-400 shrink-0 font-bold">
-                      {beacon.evacueeCount} Safe
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="font-mono text-xs text-emerald-900 bg-white px-2 py-0.5 rounded border border-emerald-400 font-bold">
+                        {beacon.evacueeCount} Safe
+                      </span>
+                      <button
+                        onClick={() => removeReliefBeacon(beacon.id)}
+                        className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded p-0.5 text-xs font-bold transition-colors cursor-pointer"
+                        title="Remove this safe haven from map"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   </div>
                   <p className="text-xs text-emerald-950 leading-relaxed italic font-medium">
                     🧭 {beacon.safeRouteDescription || beacon.notes}

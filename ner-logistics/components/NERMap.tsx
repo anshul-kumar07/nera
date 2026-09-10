@@ -49,8 +49,8 @@ interface NERMapProps {
   onReportRouteStatus?: (routeName: string, status: 'blocked' | 'at_risk' | 'open') => void
   onConfirmIncident?: (id: string) => void
   onResolveIncident?: (id: string) => void
+  onIssueResolved?: () => void
   onAdminSelectCrisisAndRoute?: (params: { lat: number; lng: number; zoneId?: string; zoneTitle?: string }) => void
-  onIssueResolved?: (zoneId?: string) => void
 }
 
 export default function NERMap({
@@ -91,8 +91,8 @@ export default function NERMap({
   onReportRouteStatus,
   onConfirmIncident,
   onResolveIncident,
-  onAdminSelectCrisisAndRoute,
   onIssueResolved,
+  onAdminSelectCrisisAndRoute,
 }: NERMapProps) {
   return (
     <MapWithNoSSR
@@ -133,8 +133,8 @@ export default function NERMap({
       onReportRouteStatus={onReportRouteStatus}
       onConfirmIncident={onConfirmIncident}
       onResolveIncident={onResolveIncident}
-      onAdminSelectCrisisAndRoute={onAdminSelectCrisisAndRoute}
       onIssueResolved={onIssueResolved}
+      onAdminSelectCrisisAndRoute={onAdminSelectCrisisAndRoute}
     />
   )
 }

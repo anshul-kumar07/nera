@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { VehicleCategory, VEHICLE_CONSTRAINTS } from '@/lib/vehicle-suitability-matrix';
 import {
   useDisasterComms,
@@ -137,8 +138,8 @@ export default function LiveMobileNotificationSimulator({
     msg => !msg.recipientRole || msg.recipientRole === 'all' || msg.recipientRole === activeRole
   );
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200 select-none pointer-events-auto">
       <div
         className="relative w-full max-w-md bg-slate-950 border border-slate-800 rounded-3xl shadow-2xl p-4 flex flex-col font-sans text-slate-100 overflow-hidden"
         style={{ height: 'min(92vh, 740px)' }}
@@ -1102,4 +1103,9 @@ export default function LiveMobileNotificationSimulator({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }

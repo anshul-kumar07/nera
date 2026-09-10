@@ -100,17 +100,26 @@ html, body {
 .dark .text-amber-900,
 .dark .text-amber-800,
 .dark .text-amber-700,
+.dark .text-yellow-900,
 .dark .text-yellow-800,
 .dark .text-yellow-700,
 .dark [class*="text-amber-700"],
-.dark [class*="text-amber-800"] {
-  color: #fbbf24 !important;
+.dark [class*="text-amber-800"],
+.dark [class*="text-amber-900"],
+.dark [class*="text-yellow-700"],
+.dark [class*="text-yellow-800"],
+.dark [class*="text-yellow-900"] {
+  color: #fde047 !important;
 }
 
 .dark .text-amber-600,
 .dark .text-amber-500,
-.dark [class*="text-amber-600"] {
-  color: #fcd34d !important;
+.dark .text-amber-400,
+.dark .text-yellow-500,
+.dark .text-yellow-400,
+.dark [class*="text-amber-600"],
+.dark [class*="text-amber-500"] {
+  color: #fef08a !important;
 }
 
 /* Vivid High-Contrast Blue */
@@ -119,8 +128,9 @@ html, body {
 .dark .text-blue-800,
 .dark .text-blue-700,
 .dark [class*="text-blue-700"],
-.dark [class*="text-blue-800"] {
-  color: #60a5fa !important;
+.dark [class*="text-blue-800"],
+.dark [class*="213d77"] {
+  color: #93c5fd !important;
 }
 
 .dark .text-blue-600,
@@ -158,8 +168,9 @@ html, body {
 
 /* Card surfaces & backgrounds in Dark Mode (Semi-Transparent Glassmorphism) */
 .dark .gov-card,
-.dark .bg-white {
-  background-color: rgba(19, 27, 46, 0.78) !important;
+.dark .bg-white,
+.dark [class*="bg-white/"] {
+  background-color: rgba(19, 27, 46, 0.72) !important;
   backdrop-filter: blur(12px) !important;
   -webkit-backdrop-filter: blur(12px) !important;
   border-color: rgba(51, 65, 85, 0.5) !important;
@@ -170,10 +181,31 @@ html, body {
 .dark .bg-slate-100,
 .dark .bg-gray-50,
 .dark .bg-gray-100,
+.dark [class*="bg-slate-50"],
+.dark [class*="bg-slate-100"],
+.dark [class*="bg-gray-50"],
+.dark [class*="bg-gray-100"],
 .dark [class*="bg-[#f8fafc]"] {
-  background-color: rgba(15, 23, 42, 0.85) !important;
+  background-color: rgba(15, 23, 42, 0.7) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+/* Light Gradients & Gradient Cards override in Dark Mode (Transparent Glass) */
+.dark [class*="from-slate-50"],
+.dark [class*="from-slate-100"],
+.dark [class*="from-slate-200"],
+.dark [class*="from-gray-50"],
+.dark [class*="from-gray-100"],
+.dark [class*="from-white"],
+.dark [class*="to-slate-50"],
+.dark [class*="to-blue-50"],
+.dark [class*="to-gray-50"] {
+  background-image: none !important;
+  background-color: rgba(19, 27, 46, 0.65) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
   border-color: rgba(51, 65, 85, 0.5) !important;
 }
 
@@ -260,8 +292,24 @@ html, body {
 .dark [class*="bg-amber-100"],
 .dark [class*="bg-yellow-50"],
 .dark [class*="bg-yellow-100"] {
-  background-color: rgba(245, 158, 11, 0.15) !important;
-  border-color: rgba(245, 158, 11, 0.35) !important;
+  background-color: rgba(245, 158, 11, 0.12) !important;
+  border-color: rgba(245, 158, 11, 0.45) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+.dark .bg-amber-50 p,
+.dark .bg-amber-100 p,
+.dark [class*="bg-amber-50"] p,
+.dark [class*="bg-amber-100"] p {
+  color: #e2e8f0 !important;
+}
+
+.dark .bg-amber-50 strong,
+.dark .bg-amber-100 strong,
+.dark [class*="bg-amber-50"] strong,
+.dark [class*="bg-amber-100"] strong {
+  color: #ffffff !important;
 }
 
 /* Blue & Indigo Tinted Boxes (IN TRANSIT / ADVISORY) */

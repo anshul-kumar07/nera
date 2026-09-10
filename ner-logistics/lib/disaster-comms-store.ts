@@ -1118,20 +1118,6 @@ export function useDisasterComms() {
     saveToStorage(STORAGE_KEYS.POLICE_CRISIS_ZONES, updated)
     setCrisisZones(updated)
 
-    // Reset active corridor so map route line is completely cleared
-    const clearedCorridor: ActiveCorridorDecision = {
-      ...INITIAL_CORRIDOR_DECISION,
-      status: 'STANDBY',
-      destinationTarget: '',
-      targetCoords: undefined,
-      pathCoordinates: undefined,
-      vehicleTelemetry: undefined,
-      distanceKm: 0,
-      etaMinutes: 0,
-    }
-    saveToStorage(STORAGE_KEYS.ACTIVE_CORRIDOR, clearedCorridor)
-    setActiveCorridor(clearedCorridor)
-
     if (targetZone) {
       // 👮 POLICE PERSPECTIVE
       addSMSMessage({
@@ -1164,31 +1150,6 @@ export function useDisasterComms() {
       })
     }
   }, [addSMSMessage])
-
-  // 5C. Clear Active Corridor & Normalize Map State
-  const clearActiveCorridor = useCallback(() => {
-    const clearedCorridor: ActiveCorridorDecision = {
-      ...INITIAL_CORRIDOR_DECISION,
-      status: 'STANDBY',
-      destinationTarget: '',
-      targetCoords: undefined,
-      pathCoordinates: undefined,
-      vehicleTelemetry: undefined,
-      distanceKm: 0,
-      etaMinutes: 0,
-    }
-    saveToStorage(STORAGE_KEYS.ACTIVE_CORRIDOR, clearedCorridor)
-    setActiveCorridor(clearedCorridor)
-
-    const currentVehicles = loadFromStorage(STORAGE_KEYS.TRACKING_VEHICLES, INITIAL_TRACKING_VEHICLES)
-    const updatedVehicles = currentVehicles.map(v => ({
-      ...v,
-      status: 'DELIVERED' as const,
-      progressPercent: 100,
-    }))
-    saveToStorage(STORAGE_KEYS.TRACKING_VEHICLES, updatedVehicles)
-    setTrackingVehicles(updatedVehicles)
-  }, [])
 
   // 6. Police Assessments Form
   const submitPoliceAssessment = useCallback((assessment: Omit<PoliceRouteAssessment, 'id' | 'status' | 'timestamp'>) => {
@@ -1393,6 +1354,18 @@ export function useDisasterComms() {
     })
   }, [addSMSMessage])
 
+  // 7C. Clear Active Corridor
+  const clearActiveCorridor = useCallback(() => {
+    const cleared: ActiveCorridorDecision = {
+      ...INITIAL_CORRIDOR_DECISION,
+      status: 'STANDBY',
+      pathCoordinates: [],
+      targetCoords: undefined,
+    }
+    saveToStorage(STORAGE_KEYS.ACTIVE_CORRIDOR, cleared)
+    setActiveCorridor(cleared)
+  }, [])
+
   // 8. Citizen Actions: Mark Safe Relief Point
   const markReliefBeacon = useCallback((beacon: Omit<ReliefBeacon, 'id' | 'verifiedByPolice' | 'rescueTeamDispatched' | 'timestamp'>) => {
     const newBeacon: ReliefBeacon = {
@@ -1435,6 +1408,20 @@ export function useDisasterComms() {
 
     return newBeacon
   }, [addSMSMessage])
+
+  // 8B. Clear All Safe Zones / Relief Beacons
+  const clearSafeZones = useCallback(() => {
+    saveToStorage(STORAGE_KEYS.RELIEF_BEACONS, [])
+    setBeacons([])
+  }, [])
+
+  // 8C. Remove Single Relief Beacon
+  const removeReliefBeacon = useCallback((beaconId: string) => {
+    const current = loadFromStorage(STORAGE_KEYS.RELIEF_BEACONS, INITIAL_RELIEF_BEACONS)
+    const updated = current.filter(b => b.id !== beaconId)
+    saveToStorage(STORAGE_KEYS.RELIEF_BEACONS, updated)
+    setBeacons(updated)
+  }, [])
 
   // 9. Citizen Actions: One-Tap SOS Distress Ping
   const submitCitizenSOS = useCallback((sos: Omit<CitizenSOSRequest, 'id' | 'status' | 'timestamp'>) => {
@@ -1781,5 +1768,7 @@ export function useDisasterComms() {
     adminDispatchSupplyConvoy,
     adminActivateTacticalCorridor,
     clearActiveCorridor,
+    clearSafeZones,
+    removeReliefBeacon,
   }
 }

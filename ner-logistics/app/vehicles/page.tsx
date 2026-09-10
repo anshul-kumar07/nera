@@ -458,11 +458,11 @@ export default function VehiclesPage() {
       })()}
 
       {/* Cargo Types */}
-      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-5 shadow-lg space-y-3">
-        <h2 className="text-xs font-bold text-gray-300 uppercase tracking-wider">{t('cargo_in_transit')}</h2>
+      <div className="gov-card p-4 sm:p-5 space-y-3">
+        <h2 className="text-xs sm:text-sm font-black text-[#213d77] uppercase tracking-wide">{t('cargo_in_transit')}</h2>
         <div className="flex flex-wrap gap-2.5">
           {Object.entries(CARGO_ICONS).map(([type, icon]) => (
-            <div key={type} className="flex items-center gap-2 bg-gray-800/80 border border-gray-700/60 rounded-xl px-3.5 py-2 text-xs font-semibold text-gray-200">
+            <div key={type} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-700">
               <span className="text-base">{icon}</span>
               <span className="capitalize">{type}</span>
             </div>
@@ -473,10 +473,10 @@ export default function VehiclesPage() {
       {/* Vehicle Cards Grid */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-extrabold text-sm text-gray-200 uppercase tracking-wider">
+          <h2 className="font-black text-sm text-[#213d77] uppercase tracking-wider">
             {t('all_vehicles')} ({vehiclesList.length})
           </h2>
-          <span className="text-xs text-gray-400">Click any vehicle to inspect digital lifetime record & service history</span>
+          <span className="text-xs text-slate-500">Click any vehicle to inspect digital lifetime record & service history</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {vehiclesList.map((v: VehicleData) => (

@@ -47,7 +47,7 @@ export default function FAQPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans select-none pb-12">
+    <div className="min-h-screen bg-slate-50 dark:bg-transparent text-slate-800 dark:text-slate-100 font-sans select-none pb-12">
       {/* Top Hero Banner */}
       <div className="bg-[#213d77] text-white border-b border-[#1b3162] py-8 sm:py-10 px-4 sm:px-8 shadow-md">
         <div className="max-w-5xl mx-auto text-center space-y-3">
@@ -69,7 +69,7 @@ export default function FAQPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by keyword (e.g. bypass, vaccines, BNSS 2023, offline, safety gate)..."
-              className="w-full bg-white text-slate-900 placeholder:text-slate-400 pl-11 pr-4 py-3 rounded-xl text-xs sm:text-sm border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#fb792b] shadow-md font-medium"
+              className="w-full bg-white dark:bg-slate-900/80 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 pl-11 pr-4 py-3 rounded-xl text-xs sm:text-sm border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#fb792b] shadow-md font-medium backdrop-blur-md"
             />
           </div>
         </div>
@@ -78,7 +78,7 @@ export default function FAQPage() {
       {/* Main Container */}
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
         {/* Category Pills */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 bg-white p-1.5 rounded-xl border border-slate-200 shadow-xs">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 bg-white dark:bg-slate-900/60 backdrop-blur-md p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
           {[
             { id: 'ALL', label: 'All Questions', icon: BookOpen },
             { id: 'ADMIN', label: '🛡️ Admin Command', icon: Shield },
@@ -94,8 +94,8 @@ export default function FAQPage() {
                 onClick={() => setSelectedCategory(cat.id as any)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-[#213d77] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                    ? 'bg-[#213d77] dark:bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
@@ -106,7 +106,7 @@ export default function FAQPage() {
         </div>
 
         {/* Results Counter */}
-        <div className="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
+        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium px-1">
           <span>Showing <strong>{filteredFAQs.length}</strong> matching questions</span>
           <span>Official MDoNER & NDMA Disaster Guidelines</span>
         </div>
@@ -118,8 +118,8 @@ export default function FAQPage() {
             return (
               <div
                 key={item.id}
-                className={`bg-white rounded-xl border transition-all duration-200 overflow-hidden ${
-                  isOpen ? 'border-[#fb792b] shadow-md ring-1 ring-[#fb792b]/20' : 'border-slate-200 hover:border-slate-300 shadow-2xs'
+                className={`bg-white dark:bg-slate-900/60 backdrop-blur-md rounded-xl border transition-all duration-200 overflow-hidden ${
+                  isOpen ? 'border-[#fb792b] dark:border-[#fb792b] shadow-md ring-1 ring-[#fb792b]/20' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-2xs'
                 }`}
               >
                 <button
@@ -128,28 +128,28 @@ export default function FAQPage() {
                   className="w-full text-left p-4 sm:p-5 flex items-start justify-between gap-4 cursor-pointer focus:outline-none"
                 >
                   <div className="space-y-1 pr-2">
-                    <span className="inline-block text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-blue-50 text-[#213d77] border border-blue-200">
+                    <span className="inline-block text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-[#213d77] dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
                       {item.category}
                     </span>
-                    <h2 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-snug">
+                    <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-white tracking-tight leading-snug">
                       {item.question}
                     </h2>
                   </div>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-transform duration-200 ${
-                    isOpen ? 'bg-orange-50 text-[#fb792b] rotate-180' : 'bg-slate-100 text-slate-500'
+                    isOpen ? 'bg-orange-50 dark:bg-orange-950/40 text-[#fb792b] rotate-180' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
                   }`}>
                     <ChevronDown className="w-4 h-4" />
                   </div>
                 </button>
 
                 {isOpen && (
-                  <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-slate-100 text-xs sm:text-sm text-slate-600 space-y-3 leading-relaxed">
+                  <div className="px-4 sm:px-5 pb-5 pt-1 border-t border-slate-100 dark:border-slate-800/80 text-xs sm:text-sm text-slate-600 dark:text-slate-300 space-y-3 leading-relaxed">
                     <p>{item.answer}</p>
                     {item.highlights && item.highlights.length > 0 && (
                       <div className="pt-2 flex flex-wrap items-center gap-1.5">
                         <span className="text-[11px] font-mono font-bold text-slate-400 mr-1">Key Takeaways:</span>
                         {item.highlights.map((h, i) => (
-                          <span key={i} className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <span key={i} className="text-[11px] font-bold px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/80">
                             ✓ {h}
                           </span>
                         ))}
