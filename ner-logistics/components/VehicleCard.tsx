@@ -3,12 +3,13 @@
 import { CARGO_ICONS } from '@/lib/data'
 import { useLanguage } from '@/lib/LanguageContext'
 import { VehicleSafetyRecord, evaluateVehicleReadiness } from '@/lib/vehicle-readiness'
-import { ShieldCheck, AlertTriangle, XCircle, HelpCircle, Award } from 'lucide-react'
+import { ShieldCheck, AlertTriangle, XCircle, HelpCircle, Award, Phone, MessageSquare } from 'lucide-react'
 
 export interface VehicleData {
   id?: string
   vehicle_number: string
   driver_name: string
+  driver_phone?: string
   cargo_type: string
   origin: string
   destination: string
@@ -47,7 +48,7 @@ const statusDot: Record<string, string> = {
 
 export default function VehicleCard(props: VehicleCardProps) {
   const { t } = useLanguage()
-  const { vehicle_number, driver_name, cargo_type, origin, destination, status, last_ping, speed_kmh, capacity_kg, loaded_kg, payload_summary, safetyRecord } = props
+  const { vehicle_number, driver_name, driver_phone, cargo_type, origin, destination, status, last_ping, speed_kmh, capacity_kg, loaded_kg, payload_summary, safetyRecord } = props
   const currentStatus = status?.toLowerCase() || 'moving'
   const utilization = capacity_kg && loaded_kg ? Math.round((loaded_kg / capacity_kg) * 100) : 85
 
@@ -82,6 +83,26 @@ export default function VehicleCard(props: VehicleCardProps) {
             </span>
           </div>
           <p className="text-xs sm:text-[13px] text-slate-600 font-semibold mt-0.5">{t('pilot_driver')}: {driver_name}</p>
+          {driver_phone && (
+            <div className="flex items-center gap-2 mt-1">
+              <a
+                href={`tel:${driver_phone}`}
+                className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded hover:bg-emerald-100 transition-colors"
+                title={`Call ${driver_name}`}
+              >
+                <Phone className="w-3 h-3" />
+                {driver_phone}
+              </a>
+              <a
+                href={`sms:${driver_phone}?body=NERA%20Dispatch%3A%20Please%20check%20your%20route%20update.`}
+                className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-300 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors"
+                title={`SMS ${driver_name}`}
+              >
+                <MessageSquare className="w-3 h-3" />
+                SMS
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Operational Status Badge */}
