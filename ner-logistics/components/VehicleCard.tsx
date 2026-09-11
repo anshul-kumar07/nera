@@ -87,7 +87,8 @@ export default function VehicleCard(props: VehicleCardProps) {
             <div className="flex items-center gap-2 mt-1">
               <a
                 href={`tel:${driver_phone}`}
-                className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded hover:bg-emerald-100 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded hover:bg-emerald-100 transition-colors cursor-pointer"
                 title={`Call ${driver_name}`}
               >
                 <Phone className="w-3 h-3" />
@@ -95,7 +96,8 @@ export default function VehicleCard(props: VehicleCardProps) {
               </a>
               <a
                 href={`sms:${driver_phone}?body=NERA%20Dispatch%3A%20Please%20check%20your%20route%20update.`}
-                className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-300 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-300 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors cursor-pointer"
                 title={`SMS ${driver_name}`}
               >
                 <MessageSquare className="w-3 h-3" />

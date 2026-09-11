@@ -488,6 +488,7 @@ export default function VehiclesPage() {
               <VehicleCard
                 vehicle_number={v.vehicle_number}
                 driver_name={v.driver_name}
+                driver_phone={v.driver_phone}
                 cargo_type={v.cargo_type}
                 origin={v.origin}
                 destination={v.destination}
