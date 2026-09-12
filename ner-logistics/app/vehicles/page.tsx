@@ -76,7 +76,12 @@ export default function VehiclesPage() {
     async function loadVehicles() {
       try {
         const { data } = await supabase.from('vehicles').select('*').order('last_ping', { ascending: false })
-        if (data && data.length > 0) setVehiclesList(data)
+        if (data && data.length > 0) {
+          setVehiclesList(data.map(v => ({
+            ...v,
+            driver_phone: v.driver_phone || (DEMO_VEHICLES.find(dv => dv.vehicle_number === v.vehicle_number)?.driver_phone)
+          })))
+        }
       } catch {
         // fallback to demo data
       }

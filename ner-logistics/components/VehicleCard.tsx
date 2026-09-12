@@ -46,11 +46,23 @@ const statusDot: Record<string, string> = {
   out_of_service: 'bg-slate-500',
 }
 
+const DEFAULT_DRIVER_PHONES: Record<string, string> = {
+  'Rajesh Kumar': '+91-94351-12201',
+  'Sanjoy Singh': '+91-98540-77643',
+  'Lalthanga Ralte': '+91-89640-33812',
+  'Tashi Norbu': '+91-94012-56789',
+  'Pemba Lepcha': '+91-97335-21904',
+  'Wg Cdr V. Sharma': '+91-98110-40021',
+  'Bipul Das': '+91-94361-88120',
+  'Anupam Roy': '+91-98620-44911',
+}
+
 export default function VehicleCard(props: VehicleCardProps) {
   const { t } = useLanguage()
   const { vehicle_number, driver_name, driver_phone, cargo_type, origin, destination, status, last_ping, speed_kmh, capacity_kg, loaded_kg, payload_summary, safetyRecord } = props
   const currentStatus = status?.toLowerCase() || 'moving'
   const utilization = capacity_kg && loaded_kg ? Math.round((loaded_kg / capacity_kg) * 100) : 85
+  const activePhone = driver_phone || DEFAULT_DRIVER_PHONES[driver_name] || '+91-94350-99881'
 
   // Deterministic Vehicle Readiness Evaluation (Physical Safety Gate)
   const readiness = evaluateVehicleReadiness({
@@ -83,19 +95,19 @@ export default function VehicleCard(props: VehicleCardProps) {
             </span>
           </div>
           <p className="text-xs sm:text-[13px] text-slate-600 font-semibold mt-0.5">{t('pilot_driver')}: {driver_name}</p>
-          {driver_phone && (
+          {activePhone && (
             <div className="flex items-center gap-2 mt-1">
               <a
-                href={`tel:${driver_phone}`}
+                href={`tel:${activePhone}`}
                 onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded hover:bg-emerald-100 transition-colors cursor-pointer"
                 title={`Call ${driver_name}`}
               >
                 <Phone className="w-3 h-3" />
-                {driver_phone}
+                {activePhone}
               </a>
               <a
-                href={`sms:${driver_phone}?body=NERA%20Dispatch%3A%20Please%20check%20your%20route%20update.`}
+                href={`sms:${activePhone}?body=NERA%20Dispatch%3A%20Please%20check%20your%20route%20update.`}
                 onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1 text-[11px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-300 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors cursor-pointer"
                 title={`SMS ${driver_name}`}
